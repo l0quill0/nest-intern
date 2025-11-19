@@ -8,9 +8,28 @@ import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { CategoryModule } from './category/category.module';
 import { FavouriteModule } from './favourite/favourite.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-redis-store';
+import { BucketModule } from './bucket/bucket.module';
 
 @Module({
-  imports: [AuthModule, UserModule, ItemModule, CartModule, OrderModule, CategoryModule, FavouriteModule],
+  imports: [
+    AuthModule,
+    UserModule,
+    ItemModule,
+    CartModule,
+    OrderModule,
+    CategoryModule,
+    FavouriteModule,
+    CacheModule.register({
+      store: redisStore,
+      host: 'localhost',
+      port: 6379,
+      ttl: 60 * 10000,
+      isGlobal: true,
+    }),
+    BucketModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -7,4 +7,6 @@ export class BaseItemDto {
   description: string;
   @IsNumber()
   price: number;
+  @IsString()
+  image: string;
 }

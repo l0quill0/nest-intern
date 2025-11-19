@@ -11,7 +11,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url = env("DATABASE_URL")
 }
 
 
@@ -22,7 +22,6 @@ model User {
   name      String
   role      String   @default("USER")
   orders    Order[]
-  cart      UserCart?
   favourites UserFavourites?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -32,9 +31,9 @@ model Item {
   id          Int      @id @default(autoincrement())
   title       String
   description String 
+  image       String
   price       Float
   orderItems  OrderItem[]
-  cartItems   CartItem[]
   favouriteOf UserFavourites[] @relation("UserFavouritesItems")
   categories  Category[] @relation("ItemCategories")
 }
@@ -46,36 +45,18 @@ model Category {
 }
 
 model UserFavourites {
-  id      Int   @id @default(autoincrement())
+  userId  Int   @id @unique
   user    User  @relation(fields: [userId], references: [id])
-  userId  Int @unique
   items   Item[] @relation("UserFavouritesItems")
 }
 
-model UserCart {
-  id      Int   @id @default(autoincrement())
-  user    User  @relation(fields: [userId], references: [id])
-  userId  Int @unique
-  items   CartItem[]
-  
-}
-
-model CartItem {
-  id        Int      @id @default(autoincrement())
-  cart      UserCart @relation(fields: [cartId], references: [id])
-  cartId    Int
-  item      Item     @relation(fields: [itemId], references: [id])
-  itemId    Int
-  quantity  Int
-}
-
 model Order{
-  id       Int      @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   user      User     @relation(fields: [userId], references: [id])
   userId    Int
-  status    OrderStatus @default(PENDING)
-  items    OrderItem[]
-  total     Float
+  status    String   @default("INCOMPLETE")
+  items     OrderItem[]
+  total     Float    @default(0)
   createdAt DateTime @default(now())
 }
 
@@ -85,13 +66,7 @@ model OrderItem {
   orderId Int
   item    Item  @relation(fields: [itemId], references: [id])
   itemId  Int
-  quantity Int
-}
-
-enum OrderStatus {
-  PENDING
-  COMPLETED
-  CANCELLED
+  quantity Int  @default(1)
 }
 
 
