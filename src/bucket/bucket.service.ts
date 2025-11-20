@@ -1,4 +1,5 @@
 import { Bucket, Storage } from '@google-cloud/storage';
+import { v4 as uuidv4 } from 'uuid';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 @Injectable()
@@ -16,7 +17,8 @@ export class BucketService {
     fileBuffer: Buffer,
     contentType: string,
   ): Promise<string> {
-    const file = this.bucket.file(fileName);
+    const bucketFileName = uuidv4() + fileName;
+    const file = this.bucket.file(bucketFileName);
     const writeStream = file.createWriteStream({
       metadata: {
         contentType,
@@ -30,7 +32,7 @@ export class BucketService {
       });
 
       writeStream.on('finish', () => {
-        resolve(fileName);
+        resolve(bucketFileName);
       });
 
       writeStream.end(fileBuffer);

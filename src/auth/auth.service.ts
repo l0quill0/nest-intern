@@ -19,7 +19,7 @@ export class AuthService {
   ) {}
 
   async register(data: CreateUserDto): Promise<User | null> {
-    const user = await this.userService.findUserByEmail(data.email);
+    const user = await this.userService.getUserByEmail(data.email);
     if (user) {
       throw new HttpException(
         USER_ALREADY_EXISTS_ERROR,
@@ -36,7 +36,7 @@ export class AuthService {
   }
 
   async validateUser({ email, password }: AuthDto): Promise<boolean> {
-    const user = await this.userService.findUserByEmail(email);
+    const user = await this.userService.getUserWithPass(email);
     if (!user) {
       throw new HttpException(UNKNOWN_USER_ERROR, HttpStatus.NOT_FOUND);
     }
@@ -48,7 +48,7 @@ export class AuthService {
   }
 
   async login(email: string) {
-    const payload = await this.userService.findUserByEmail(email);
+    const payload = await this.userService.getUserByEmail(email);
     return {
       access_token: this.jwtService.sign({
         email: payload?.email,
