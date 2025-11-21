@@ -1,8 +1,10 @@
+import { IUserJWT } from './../auth/guards/role.guard';
 import { ItemService } from 'src/item/item.service';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 import { OrderStatus } from './order.enum';
 import {
+  NOT_OWN_ORDER,
   ORDER_EMPTY,
   ORDER_ITEM_NOT_FOUND,
   ORDER_NOT_FOUND,
@@ -10,6 +12,9 @@ import {
 import { ITEM_NOT_FOUND } from 'src/item/item.constants';
 import { OrderAddItemDto } from './dto/order.add.item.dto';
 import { OrderRemoveItemDto } from './dto/order.remove.item.dto';
+import { Role } from 'src/auth/role.enum';
+import { OrderPaginationOptionsDto } from './dto/order.pagination.options.dto';
+import { Prisma } from 'generated/prisma';
 
 @Injectable()
 export class OrderService {
@@ -18,7 +23,47 @@ export class OrderService {
     private readonly itemService: ItemService,
   ) {}
 
-  //pagination
+  async getPaginatedOrders(user: IUserJWT, options: OrderPaginationOptionsDto) {
+    const { page, pageSize, sortBy, sortOrder } = options;
+
+    const skip = (page - 1) * pageSize;
+    const where: Prisma.OrderWhereInput = {
+      id: user.role === Role.ADMIN ? undefined : user.sub,
+    };
+
+    where.AND = { NOT: { status: OrderStatus.INCOMPLETE } };
+
+    const orderBy: Prisma.ItemOrderByWithRelationInput = {
+      [sortBy!]: sortOrder,
+    };
+
+    const [totalItems, items] = await this.prismaService.$transaction(
+      async (tx) => {
+        const totalItems = await tx.order.count({
+          where,
+        });
+        const items = await tx.order.findMany({
+          where,
+          orderBy,
+          skip,
+          take: pageSize,
+        });
+        return [totalItems, items];
+      },
+    );
+
+    const totalPages = Math.ceil(totalItems / pageSize);
+    return {
+      data: items,
+      meta: {
+        totalItems,
+        itemCount: items.length,
+        itemsPerPage: pageSize,
+        totalPages,
+        currentPage: page,
+      },
+    };
+  }
 
   async getCurrentOrder(userId: number) {
     const currentOrder = await this.prismaService.order.findFirst({
@@ -42,7 +87,7 @@ export class OrderService {
     return await this.prismaService.order.create({ data: { userId } });
   }
 
-  async getOrderById(orderId: number) {
+  async getOrderById(user: IUserJWT, orderId: number) {
     const order = await this.prismaService.order.findUnique({
       where: { id: orderId },
       include: {
@@ -56,6 +101,10 @@ export class OrderService {
 
     if (!order) {
       throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    if (order.userId !== user.sub || user.role !== Role.ADMIN) {
+      throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
     }
 
     return order;
@@ -108,13 +157,23 @@ export class OrderService {
     ]);
   }
 
-  async removeOrderItem({ orderItemId, quantity }: OrderRemoveItemDto) {
+  async removeOrderItem(
+    userid: number,
+    { orderItemId, quantity }: OrderRemoveItemDto,
+  ) {
     const orderItem = await this.prismaService.orderItem.findUnique({
       where: { id: orderItemId },
+      include: {
+        order: true,
+      },
     });
 
     if (!orderItem) {
       throw new HttpException(ORDER_ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    if (orderItem.order.userId !== userid) {
+      throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
     }
 
     if (quantity) {
@@ -142,17 +201,22 @@ export class OrderService {
 
     return await this.prismaService.order.update({
       where: { id: currentOrder.id },
-      data: { status: OrderStatus.PENDING },
+      data: { status: OrderStatus.PENDING, createdAt: new Date(Date.now()) },
     });
   }
 
-  async cancelOrder(orderId: number) {
+  async cancelOrder(user: IUserJWT, orderId: number) {
     const order = await this.prismaService.order.findUnique({
       where: { id: orderId },
     });
     if (!order) {
       throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
+    if (order.userId !== user.sub || user.role !== Role.ADMIN) {
+      throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
+    }
+
     return await this.prismaService.order.update({
       where: { id: order.id },
       data: { status: OrderStatus.CANCELED },

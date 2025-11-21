@@ -1,9 +1,10 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Roles } from '../decorators/role.decorator';
+import { Role } from '../role.enum';
 
 export interface IUserJWT {
-  role: string;
+  role: Role;
   name: string;
   email: string;
   sub: number;

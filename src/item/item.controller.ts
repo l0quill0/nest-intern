@@ -9,8 +9,10 @@ import {
   MaxFileSizeValidator,
   Param,
   ParseFilePipe,
+  ParseIntPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -34,8 +36,31 @@ export class ItemController {
   ) {}
 
   @Get(':id')
-  async getItemById(@Param('id') id: number) {
+  async getItemById(@Param('id', ParseIntPipe) id: number) {
     return await this.itemService.getItemById(id);
+  }
+
+  @Get('')
+  async getItems(
+    @Query('page') page: number = 1,
+    @Query('pageSize') pageSize: number = 10,
+    @Query('search') search?: string,
+    @Query('priceMin') priceMin?: number,
+    @Query('priceMax') priceMax?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+    @Query('category') category?: string[],
+  ) {
+    return await this.itemService.paginateItems({
+      page,
+      pageSize,
+      search,
+      priceMin,
+      priceMax,
+      sortBy,
+      sortOrder,
+      category,
+    });
   }
 
   @Roles([Role.ADMIN])
@@ -60,48 +85,34 @@ export class ItemController {
       file.mimetype,
     );
 
-    return await this.itemService.createItem({ image, ...data });
+    return await this.itemService.createItem(image, data);
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
-  @Patch('update-item-info/:id')
-  async updateItemInfo(
-    @Body() data: UpdateItemDto,
-    @Param('id') itemId: number,
-  ) {
-    return await this.itemService.updateItemInfo(itemId, data);
-  }
-
-  @Roles([Role.ADMIN])
-  @UseGuards(JwtGuard, RolesGuard)
-  @Patch('update-item-image/:id')
+  @Patch('update/:id')
   @UseInterceptors(FileInterceptor('file'))
-  async updateItemImage(
+  async updateItemInfo(
+    @Param('id', ParseIntPipe) itemId: number,
+    @Body() data: UpdateItemDto,
     @UploadedFile(
       new ParseFilePipe({
+        fileIsRequired: false,
         validators: [
           new MaxFileSizeValidator({ maxSize: maxImageSize }),
           new FileTypeValidator({ fileType: 'image/jpeg' }),
         ],
       }),
     )
-    file: Express.Multer.File,
-    @Param('id') id: number,
+    file?: Express.Multer.File,
   ) {
-    const image = await this.bucketService.upload(
-      file.originalname,
-      file.buffer,
-      file.mimetype,
-    );
-
-    return await this.itemService.updateItemImage(id, image);
+    return await this.itemService.updateItemInfo(itemId, data, file);
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
   @Delete(':id')
-  async deleteItem(@Param('id') id: number) {
+  async deleteItem(@Param('id', ParseIntPipe) id: number) {
     return await this.itemService.deleteItem(id);
   }
 }

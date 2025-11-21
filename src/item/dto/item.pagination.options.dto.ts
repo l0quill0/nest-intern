@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsIn,
   IsInt,
   IsNumber,
@@ -46,5 +47,9 @@ export class ItemPaginationOptionsDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   @Type(() => String)
-  readonly sortOrder?: 'asc' | 'desc' = 'desc';
+  readonly sortOrder?: 'asc' | 'desc';
+
+  @IsOptional()
+  @IsArray()
+  readonly category?: string[];
 }

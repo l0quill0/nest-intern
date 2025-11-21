@@ -38,4 +38,12 @@ export class BucketService {
       writeStream.end(fileBuffer);
     });
   }
+
+  async deleteItem(fileName: string) {
+    try {
+      await this.bucket.file(fileName).delete();
+    } catch (error) {
+      console.error(`Error deleting file: ${error}`);
+    }
+  }
 }

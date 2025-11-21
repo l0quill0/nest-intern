@@ -24,7 +24,6 @@ model User {
   orders    Order[]
   favourites UserFavourites?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model Item {

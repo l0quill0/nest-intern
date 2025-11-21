@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { OrderService } from './order.service';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import * as roleGuard from 'src/auth/guards/role.guard';
@@ -13,18 +22,38 @@ export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
   @UseGuards(JwtGuard)
+  @Get('')
+  async getPaginatedOrders(
+    @Me() user: roleGuard.IUserJWT,
+    @Query('page') page: number,
+    @Query('pageSize') pageSize: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+  ) {
+    return await this.orderService.getPaginatedOrders(user, {
+      page,
+      pageSize,
+      sortBy,
+      sortOrder,
+    });
+  }
+
+  @UseGuards(JwtGuard)
   @Get('current')
   async getCurrentOrder(@Me() user: roleGuard.IUserJWT) {
     return (
-      (await this.orderService.getCurrentOrder(user.sub)) &&
+      (await this.orderService.getCurrentOrder(user.sub)) ||
       (await this.orderService.createCurrentOrder(user.sub))
     );
   }
 
   @UseGuards(JwtGuard)
   @Get(':id')
-  async getOrderById(@Param('id') id: number) {
-    return await this.orderService.getOrderById(id);
+  async getOrderById(
+    @Me() user: roleGuard.IUserJWT,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return await this.orderService.getOrderById(user, id);
   }
 
   @UseGuards(JwtGuard)
@@ -36,11 +65,13 @@ export class OrderController {
     return await this.orderService.addOrderItem(user.sub, data);
   }
 
-  //fix
   @UseGuards(JwtGuard)
   @Patch('remove-item')
-  async removeOrderItem(@Body() data: OrderRemoveItemDto) {
-    return await this.orderService.removeOrderItem(data);
+  async removeOrderItem(
+    @Me() user: roleGuard.IUserJWT,
+    @Body() data: OrderRemoveItemDto,
+  ) {
+    return await this.orderService.removeOrderItem(user.sub, data);
   }
 
   @UseGuards(JwtGuard)
@@ -49,16 +80,18 @@ export class OrderController {
     return await this.orderService.sendOrder(user.sub);
   }
 
-  //fix
   @UseGuards(JwtGuard)
   @Patch('cancel/:id')
-  async cancelOrder(@Param('id') id: number) {
-    return await this.orderService.cancelOrder(id);
+  async cancelOrder(
+    @Me() user: roleGuard.IUserJWT,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return await this.orderService.cancelOrder(user, id);
   }
 
   @Roles([Role.ADMIN])
   @Patch('complete/:id')
-  async completeOrder(@Param('id') id: number) {
+  async completeOrder(@Param('id', ParseIntPipe) id: number) {
     return await this.orderService.completeOrder(id);
   }
 }

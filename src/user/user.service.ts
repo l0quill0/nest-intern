@@ -7,7 +7,7 @@ import { USER_NOT_FOUND, WRONG_OLD_PASSWORD } from './user.constants';
 
 import { UpdatePasswordDto } from './dto/updatePassword.dto';
 import { CreateUserDto } from './dto/create.user.dto';
-import { UpdateUserDto } from './dto/update.user.dto';
+import { BaseUserDto } from './dto/base.user.dto';
 
 @Injectable()
 export class UserService {
@@ -36,9 +36,9 @@ export class UserService {
     });
   }
 
-  async updateUser(data: UpdateUserDto): Promise<User | null> {
+  async updateUser(id: number, data: BaseUserDto): Promise<User | null> {
     const user = await this.prismaService.user.findUnique({
-      where: { id: data.id },
+      where: { id },
     });
 
     if (!user) {
@@ -46,7 +46,7 @@ export class UserService {
     }
 
     return await this.prismaService.user.update({
-      where: { id: data.id },
+      where: { id },
       data,
     });
   }

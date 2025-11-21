@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import * as roleGuard from 'src/auth/guards/role.guard';
@@ -10,7 +18,6 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 
 import { UserService } from './user.service';
 
-import { UpdateUserDto } from './dto/update.user.dto';
 import { BaseUserDto } from './dto/base.user.dto';
 import { UpdatePasswordDto } from './dto/updatePassword.dto';
 
@@ -26,9 +33,12 @@ export class UserController {
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, roleGuard.RolesGuard)
-  @Patch('update')
-  async updateUser(@Body() updateData: UpdateUserDto) {
-    return await this.userService.updateUser(updateData);
+  @Patch('update/:id')
+  async updateUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateData: BaseUserDto,
+  ) {
+    return await this.userService.updateUser(id, updateData);
   }
 
   @UseGuards(JwtGuard)
@@ -37,7 +47,7 @@ export class UserController {
     @Me() user: roleGuard.IUserJWT,
     @Body() updateData: BaseUserDto,
   ) {
-    return await this.userService.updateUser({ ...updateData, id: user.sub });
+    return await this.userService.updateUser(user.sub, updateData);
   }
 
   @UseGuards(JwtGuard)
