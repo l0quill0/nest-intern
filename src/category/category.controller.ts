@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseIntPipe,
   Post,
@@ -18,17 +19,22 @@ import { CategoryCreateDto } from './dto/category.create.dto';
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
-  @Roles([Role.ADMIN])
-  @UseGuards(JwtGuard, RolesGuard)
-  @Post('add')
-  async addCategory(@Body() data: CategoryCreateDto) {
-    return this.categoryService.categoryAdd(data.name);
+  @Get('')
+  async getAllCategories() {
+    return await this.categoryService.categoryGetAll();
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
-  @Delete('remove/:id')
+  @Post('')
+  async addCategory(@Body() data: CategoryCreateDto) {
+    return await this.categoryService.categoryAdd(data.name);
+  }
+
+  @Roles([Role.ADMIN])
+  @UseGuards(JwtGuard, RolesGuard)
+  @Delete(':id')
   async removeCategory(@Param('id', ParseIntPipe) id: number) {
-    return this.categoryService.categoryRemove(id);
+    return await this.categoryService.categoryRemove(id);
   }
 }

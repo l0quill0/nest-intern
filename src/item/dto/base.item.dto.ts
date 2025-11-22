@@ -1,14 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
 export class BaseItemDto {
   @IsString()
+  @IsNotEmpty()
   title: string;
   @IsString()
+  @IsNotEmpty()
   description: string;
   @Type(() => Number)
   @IsNumber()
   price: number;
   @IsString()
+  @IsNotEmpty()
   image: string;
 }

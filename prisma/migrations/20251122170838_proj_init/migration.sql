@@ -17,6 +17,7 @@ CREATE TABLE "Item" (
     "description" TEXT NOT NULL,
     "image" TEXT NOT NULL,
     "price" DOUBLE PRECISION NOT NULL,
+    "isRemoved" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Item_pkey" PRIMARY KEY ("id")
 );

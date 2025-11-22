@@ -1,16 +1,32 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 import { CATEGORY_NOT_FOUND } from './category.constants';
+import { CacheKeys } from 'src/cache.keys';
 
 @Injectable()
 export class CategoryService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly prismaService: PrismaService,
+  ) {}
 
   async categoryGetAll() {
-    return await this.prismaService.category.findMany();
+    const cacheKey = CacheKeys.CATEGORIES();
+    const cachedData = await this.cacheManager.get(cacheKey);
+
+    if (cachedData) return cachedData;
+
+    const categories = await this.prismaService.category.findMany();
+
+    await this.cacheManager.set(cacheKey, categories);
+
+    return categories;
   }
 
   async categoryAdd(name: string) {
+    await this.cacheManager.del(CacheKeys.CATEGORIES());
+
     return await this.prismaService.category.create({ data: { name } });
   }
 
@@ -22,9 +38,11 @@ export class CategoryService {
       },
     });
 
-    if (!category) {
+    if (!category || category.name === 'uncategorized') {
       throw new HttpException(CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
+    await this.cacheManager.del(CacheKeys.CATEGORIES());
 
     return await this.prismaService.$transaction(async (tx) => {
       await tx.category.delete({ where: { id: categoryId } });

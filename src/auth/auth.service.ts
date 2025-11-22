@@ -29,7 +29,7 @@ export class AuthService {
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(data.password, salt);
 
-    return this.userService.createUser({
+    return await this.userService.createUser({
       ...data,
       password: hashedPassword,
     });

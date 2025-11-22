@@ -1,9 +1,16 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import { FavouriteService } from './favourite.service';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { Me } from 'src/user/decorators/me.decorator';
 import * as roleGuard from 'src/auth/guards/role.guard';
-import { FavouriteDto } from './dto/favourite.dto';
 
 @Controller('favourite')
 export class FavouriteController {
@@ -12,24 +19,24 @@ export class FavouriteController {
   @UseGuards(JwtGuard)
   @Get('')
   async getFavourite(@Me() user: roleGuard.IUserJWT) {
-    return this.favouriteService.getFavourites(user.sub);
+    return await this.favouriteService.getFavourites(user.sub);
   }
 
   @UseGuards(JwtGuard)
-  @Patch('add')
+  @Patch('add/:itemId')
   async addFavourite(
     @Me() user: roleGuard.IUserJWT,
-    @Body() body: FavouriteDto,
+    @Param('itemId', ParseIntPipe) itemId: number,
   ) {
-    return await this.favouriteService.addToFavourite(user.sub, body.itemId);
+    return await this.favouriteService.addToFavourite(user.sub, itemId);
   }
 
   @UseGuards(JwtGuard)
-  @Patch('remove')
+  @Patch('remove/:itemId')
   async removeFavourite(
     @Me() user: roleGuard.IUserJWT,
-    @Body() body: FavouriteDto,
+    @Param('itemId', ParseIntPipe) itemId: number,
   ) {
-    return await this.favouriteService.removeFavourite(user.sub, body.itemId);
+    return await this.favouriteService.removeFavourite(user.sub, itemId);
   }
 }

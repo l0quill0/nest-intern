@@ -28,7 +28,7 @@ export class BucketService {
     return new Promise((resolve, reject) => {
       writeStream.on('error', (err) => {
         console.log(err);
-        reject(new InternalServerErrorException('Failed to upload file'));
+        reject(new InternalServerErrorException('Failed to upload file', err));
       });
 
       writeStream.on('finish', () => {

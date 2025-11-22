@@ -42,7 +42,7 @@ export class UserController {
   }
 
   @UseGuards(JwtGuard)
-  @Patch('updateMe')
+  @Patch('update-me')
   async updateMe(
     @Me() user: roleGuard.IUserJWT,
     @Body() updateData: BaseUserDto,
@@ -54,7 +54,7 @@ export class UserController {
   @Patch('update-password')
   async updatePassword(
     @Me() user: roleGuard.IUserJWT,
-    @Body('newPassword') data: UpdatePasswordDto,
+    @Body() data: UpdatePasswordDto,
   ) {
     return await this.userService.updatePassword(user.sub, data);
   }

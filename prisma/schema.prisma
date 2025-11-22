@@ -32,6 +32,7 @@ model Item {
   description String 
   image       String
   price       Float
+  isRemoved   Boolean @default(false)
   orderItems  OrderItem[]
   favouriteOf UserFavourites[] @relation("UserFavouritesItems")
   categories  Category[] @relation("ItemCategories")

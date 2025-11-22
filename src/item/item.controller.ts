@@ -21,7 +21,6 @@ import { Role } from 'src/auth/role.enum';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { RolesGuard } from 'src/auth/guards/role.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { BucketService } from 'src/bucket/bucket.service';
 import 'multer';
 import { CreateItemDto } from './dto/create.item.dto';
 import { UpdateItemDto } from './dto/update.item.dto';
@@ -30,10 +29,7 @@ const maxImageSize = 5 * 1024 * 1024;
 
 @Controller('item')
 export class ItemController {
-  constructor(
-    private readonly itemService: ItemService,
-    private readonly bucketService: BucketService,
-  ) {}
+  constructor(private readonly itemService: ItemService) {}
 
   @Get(':id')
   async getItemById(@Param('id', ParseIntPipe) id: number) {
@@ -65,7 +61,7 @@ export class ItemController {
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
-  @Post('create')
+  @Post('')
   @UseInterceptors(FileInterceptor('file'))
   async createItem(
     @UploadedFile(
@@ -79,18 +75,12 @@ export class ItemController {
     file: Express.Multer.File,
     @Body() data: CreateItemDto,
   ) {
-    const image = await this.bucketService.upload(
-      file.originalname,
-      file.buffer,
-      file.mimetype,
-    );
-
-    return await this.itemService.createItem(image, data);
+    return await this.itemService.createItem(file, data);
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
-  @Patch('update/:id')
+  @Patch(':id')
   @UseInterceptors(FileInterceptor('file'))
   async updateItemInfo(
     @Param('id', ParseIntPipe) itemId: number,
