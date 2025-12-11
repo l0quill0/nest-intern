@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -57,7 +59,7 @@ export class OrderController {
   }
 
   @UseGuards(JwtGuard)
-  @Patch('add-item')
+  @Post('add-item')
   async addOrderItem(
     @Me() user: roleGuard.IUserJWT,
     @Body() data: OrderAddItemDto,
@@ -66,7 +68,13 @@ export class OrderController {
   }
 
   @UseGuards(JwtGuard)
-  @Patch('remove-item')
+  @Delete('clear')
+  async clearCurrentOrder(@Me() user: roleGuard.IUserJWT) {
+    return await this.orderService.clearOrder(user.sub);
+  }
+
+  @UseGuards(JwtGuard)
+  @Delete('remove-item')
   async removeOrderItem(
     @Me() user: roleGuard.IUserJWT,
     @Body() data: OrderRemoveItemDto,
@@ -90,8 +98,8 @@ export class OrderController {
   }
 
   @Roles([Role.ADMIN])
-  @Patch('complete/:id')
-  async completeOrder(@Param('id', ParseIntPipe) id: number) {
-    return await this.orderService.completeOrder(id);
+  @Patch('confirm/:id')
+  async confirmOrder(@Param('id', ParseIntPipe) id: number) {
+    return await this.orderService.confirmOrder(id);
   }
 }

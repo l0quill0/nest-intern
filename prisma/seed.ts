@@ -5,10 +5,11 @@ const prisma = new PrismaClient();
 
 async function main() {
   await prisma.category.upsert({
-    where: { name: 'uncategorized' },
+    where: { name: 'Інше' },
     update: {},
     create: {
-      name: 'uncategorized',
+      name: 'Інше',
+      image: '',
     },
   });
 
@@ -26,6 +27,7 @@ async function main() {
       password: hashedPassword,
       name: 'Alexander',
       role: 'ADMIN',
+      isRegistered: true,
       favourites: { create: {} },
     },
   });

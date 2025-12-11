@@ -1,11 +1,11 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { BaseItemDto } from './base.item.dto';
-import { IsArray, IsOptional } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class UpdateItemDto extends PartialType(
   OmitType(BaseItemDto, ['image']),
 ) {
-  @IsArray()
+  @IsString()
   @IsOptional()
-  categories?: string[];
+  category?: string;
 }

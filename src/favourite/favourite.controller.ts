@@ -1,10 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
-  Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import { FavouriteService } from './favourite.service';
@@ -23,7 +24,7 @@ export class FavouriteController {
   }
 
   @UseGuards(JwtGuard)
-  @Patch('add/:itemId')
+  @Post(':itemId')
   async addFavourite(
     @Me() user: roleGuard.IUserJWT,
     @Param('itemId', ParseIntPipe) itemId: number,
@@ -32,7 +33,7 @@ export class FavouriteController {
   }
 
   @UseGuards(JwtGuard)
-  @Patch('remove/:itemId')
+  @Delete(':itemId')
   async removeFavourite(
     @Me() user: roleGuard.IUserJWT,
     @Param('itemId', ParseIntPipe) itemId: number,

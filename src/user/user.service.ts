@@ -10,6 +10,7 @@ import { CreateUserDto } from './dto/create.user.dto';
 import { BaseUserDto } from './dto/base.user.dto';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { CacheKeys } from 'src/cache.keys';
+import { USER_ALREADY_EXISTS_ERROR } from 'src/auth/auth.constants';
 
 @Injectable()
 export class UserService {
@@ -53,7 +54,17 @@ export class UserService {
 
   async createUser(data: CreateUserDto) {
     return await this.prismaService.user.create({
-      data: { ...data, favourites: { create: {} } },
+      data: { ...data, isRegistered: true, favourites: { create: {} } },
+    });
+  }
+
+  async createUserAuto(email: string) {
+    const user = await this.prismaService.user.findUnique({ where: { email } });
+
+    if (user) return user;
+
+    return await this.prismaService.user.create({
+      data: { email, favourites: { create: {} } },
     });
   }
 
@@ -84,7 +95,7 @@ export class UserService {
       omit: { password: false },
     });
 
-    if (!user) {
+    if (!user || !user.isRegistered || !user.password) {
       throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 

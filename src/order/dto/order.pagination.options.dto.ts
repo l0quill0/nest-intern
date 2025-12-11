@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
-const sortFields = ['price', 'createdAt'];
+const sortFields = ['id', 'price', 'createdAt'];
 
 export class OrderPaginationOptionsDto {
   @IsNumber()
@@ -19,7 +19,7 @@ export class OrderPaginationOptionsDto {
   @IsIn(sortFields, {
     message: `sortBy must be one of the following values: ${sortFields.join(', ')}`,
   })
-  readonly sortBy?: string = 'createdAt';
+  readonly sortBy?: string = 'id';
 
   @IsOptional()
   @IsString()

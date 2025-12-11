@@ -1,9 +1,9 @@
 import { OmitType } from '@nestjs/mapped-types';
 import { BaseItemDto } from './base.item.dto';
-import { IsArray, IsOptional } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class CreateItemDto extends OmitType(BaseItemDto, ['image']) {
-  @IsArray()
+  @IsString()
   @IsOptional()
-  categories?: string[];
+  category: string;
 }

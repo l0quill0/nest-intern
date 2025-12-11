@@ -1,8 +1,7 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsIn,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -13,12 +12,14 @@ const sortFields = ['title', 'price'];
 
 export class ItemPaginationOptionsDto {
   @IsOptional()
-  @IsInt()
+  @IsNumber()
+  @Type(() => Number)
   @Min(1)
   readonly page: number = 1;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber()
+  @Type(() => Number)
   @Min(1)
   readonly pageSize: number = 10;
 
@@ -27,13 +28,19 @@ export class ItemPaginationOptionsDto {
   readonly search?: string;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    return Number(value);
+  })
   @IsNumber()
   @Min(0)
   readonly priceMin?: number;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    return Number(value);
+  })
   @IsNumber()
-  @Min(0)
+  @Min(1)
   readonly priceMax?: number;
 
   @IsOptional()
@@ -47,9 +54,17 @@ export class ItemPaginationOptionsDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   @Type(() => String)
-  readonly sortOrder?: 'asc' | 'desc';
+  readonly sortOrder?: 'asc' | 'desc' = 'asc';
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value == null) return [];
+
+    if (Array.isArray(value)) return value as string[];
+    if (typeof value === 'string') return [value];
+
+    return [];
+  })
   @IsArray()
   readonly category?: string[];
 }

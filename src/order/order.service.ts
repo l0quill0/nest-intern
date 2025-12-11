@@ -8,6 +8,7 @@ import {
   ORDER_EMPTY,
   ORDER_ITEM_NOT_FOUND,
   ORDER_NOT_FOUND,
+  STATUS_INCORRECT,
 } from './order.constants';
 import { ITEM_NOT_FOUND } from 'src/item/item.constants';
 import { OrderAddItemDto } from './dto/order.add.item.dto';
@@ -17,6 +18,7 @@ import { OrderPaginationOptionsDto } from './dto/order.pagination.options.dto';
 import { Order, Prisma, OrderItem } from 'generated/prisma';
 import { RedisService } from 'src/redis/redis.service';
 import { CacheKeys } from 'src/cache.keys';
+import { IOrder } from './dto/order.return.dto';
 
 @Injectable()
 export class OrderService {
@@ -41,7 +43,7 @@ export class OrderService {
 
     const skip = (page - 1) * pageSize;
     const where: Prisma.OrderWhereInput = {
-      id: user.role === Role.ADMIN ? undefined : user.sub,
+      userId: user.role === Role.ADMIN ? undefined : user.sub,
     };
 
     where.AND = { NOT: { status: OrderStatus.INCOMPLETE } };
@@ -50,27 +52,45 @@ export class OrderService {
       [sortBy!]: sortOrder,
     };
 
-    const [totalItems, items] = await this.prismaService.$transaction(
+    const [totalItems, orders] = await this.prismaService.$transaction(
       async (tx) => {
         const totalItems = await tx.order.count({
           where,
         });
-        const items = await tx.order.findMany({
+        const orders = await tx.order.findMany({
           where,
           orderBy,
           skip,
           take: pageSize,
+          omit: { userId: true },
+          include: {
+            items: {
+              include: {
+                item: true,
+              },
+            },
+          },
         });
-        return [totalItems, items];
+        return [totalItems, orders];
       },
     );
 
+    const formattedOrders = orders.map((order) => {
+      return {
+        ...order,
+        items: order.items.map((item) => ({
+          ...item.item,
+          quantity: item.quantity,
+        })),
+      };
+    });
+
     const totalPages = Math.ceil(totalItems / pageSize);
     const paginatedOrders = {
-      data: items,
+      data: formattedOrders,
       meta: {
         totalItems,
-        itemCount: items.length,
+        itemCount: orders.length,
         itemsPerPage: pageSize,
         totalPages,
         currentPage: page,
@@ -85,7 +105,6 @@ export class OrderService {
   async getCurrentOrder(userId: number) {
     const cacheKey = CacheKeys.CURRENTORDER(userId);
     const cachedData = await this.cacheManager.get(cacheKey);
-
     if (cachedData) return cachedData;
 
     const currentOrder = await this.prismaService.order.findFirst({
@@ -103,18 +122,33 @@ export class OrderService {
       return null;
     }
 
-    await this.cacheManager.set(cacheKey, currentOrder);
-    return currentOrder;
+    const order: IOrder = {
+      ...currentOrder,
+      items: currentOrder.items.map((item) => ({
+        ...item.item,
+        quantity: item.quantity,
+      })),
+    };
+
+    await this.cacheManager.set(cacheKey, order);
+
+    return order;
   }
 
   async createCurrentOrder(userId: number) {
-    const currentOrdet = await this.prismaService.order.create({
+    const currentOrder = await this.prismaService.order.create({
       data: { userId },
       include: { items: true },
     });
     const cacheKey = CacheKeys.CURRENTORDER(userId);
-    await this.cacheManager.set(cacheKey, currentOrdet);
-    return currentOrdet;
+
+    const order: IOrder = {
+      ...currentOrder,
+      items: [],
+    };
+
+    await this.cacheManager.set(cacheKey, order);
+    return order;
   }
 
   async getOrderById(user: IUserJWT, orderId: number) {
@@ -123,7 +157,7 @@ export class OrderService {
       Order & { items: OrderItem[] }
     >(cacheKey);
     if (cachedData) {
-      if (cachedData.userId !== user.sub || user.role !== Role.ADMIN) {
+      if (cachedData.userId !== user.sub && user.role !== Role.ADMIN) {
         throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
       }
       return cachedData;
@@ -144,16 +178,27 @@ export class OrderService {
       throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    if (order.userId !== user.sub || user.role !== Role.ADMIN) {
+    if (order.userId !== user.sub && user.role !== Role.ADMIN) {
       throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
     }
 
-    await this.cacheManager.set(cacheKey, order);
+    const returnOrder: IOrder = {
+      ...order,
+      items: order.items.map((item) => ({
+        ...item.item,
+        quantity: item.quantity,
+      })),
+    };
 
-    return order;
+    await this.cacheManager.set(cacheKey, returnOrder);
+
+    return returnOrder;
   }
 
-  async addOrderItem(userId: number, { itemId, quantity }: OrderAddItemDto) {
+  async addOrderItem(
+    userId: number,
+    { itemId, quantity = 1 }: OrderAddItemDto,
+  ) {
     const item = await this.prismaService.item.findUnique({
       where: { id: itemId },
     });
@@ -167,7 +212,10 @@ export class OrderService {
     });
 
     if (!currentOrder) {
-      currentOrder = await this.createCurrentOrder(userId);
+      currentOrder = await this.prismaService.order.create({
+        data: { userId },
+        include: { items: true },
+      });
       if (!currentOrder) {
         throw new HttpException('BAD_REQUEST', HttpStatus.BAD_REQUEST);
       }
@@ -185,7 +233,7 @@ export class OrderService {
       return await this.prismaService.$transaction([
         this.prismaService.orderItem.update({
           where: { id: itemInOrder.id },
-          data: { quantity },
+          data: { quantity: itemInOrder.quantity + quantity },
         }),
         this.prismaService.order.update({
           where: { id: currentOrder.id },
@@ -207,12 +255,23 @@ export class OrderService {
 
   async removeOrderItem(
     userId: number,
-    { orderItemId, quantity }: OrderRemoveItemDto,
+    { itemId, quantity }: OrderRemoveItemDto,
   ) {
-    const orderItem = await this.prismaService.orderItem.findUnique({
-      where: { id: orderItemId },
+    const currentOrder = await this.prismaService.order.findFirst({
+      where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
+      include: {
+        items: true,
+      },
+    });
+    if (!currentOrder || currentOrder.items.length < 1) {
+      throw new HttpException(ORDER_EMPTY, HttpStatus.BAD_REQUEST);
+    }
+
+    const orderItem = await this.prismaService.orderItem.findFirst({
+      where: { AND: [{ orderId: currentOrder.id }, { itemId }] },
       include: {
         order: true,
+        item: true,
       },
     });
 
@@ -226,16 +285,56 @@ export class OrderService {
 
     await this.cacheManager.del(CacheKeys.CURRENTORDER(userId));
 
-    if (quantity) {
-      return await this.prismaService.orderItem.update({
-        where: { id: orderItem.id },
-        data: { quantity },
-      });
+    if (quantity && quantity < orderItem.quantity) {
+      return await this.prismaService.$transaction([
+        this.prismaService.orderItem.update({
+          where: { id: orderItem.id },
+          data: { quantity: orderItem.quantity - quantity },
+        }),
+        this.prismaService.order.update({
+          where: { id: currentOrder.id },
+          data: {
+            total: currentOrder.total - quantity * orderItem.item.price,
+          },
+        }),
+      ]);
     }
 
-    return await this.prismaService.orderItem.delete({
-      where: { id: orderItem.id },
+    return await this.prismaService.$transaction([
+      this.prismaService.orderItem.delete({
+        where: { id: orderItem.id },
+      }),
+      this.prismaService.order.update({
+        where: { id: currentOrder.id },
+        data: {
+          total: currentOrder.total - orderItem.quantity * orderItem.item.price,
+        },
+      }),
+    ]);
+  }
+
+  async clearOrder(userId: number) {
+    const currentOrder = await this.prismaService.order.findFirst({
+      where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
+      include: {
+        items: true,
+      },
     });
+    if (!currentOrder || currentOrder.items.length < 1) {
+      throw new HttpException(ORDER_EMPTY, HttpStatus.BAD_REQUEST);
+    }
+    await this.cacheManager.del(CacheKeys.CURRENTORDER(userId));
+    await this.redisService.clearByPattern(CacheKeys.ORDERLISTPATTERN());
+
+    return await this.prismaService.$transaction([
+      this.prismaService.orderItem.deleteMany({
+        where: { orderId: currentOrder.id },
+      }),
+      this.prismaService.order.update({
+        where: { id: currentOrder.id },
+        data: { total: 0 },
+      }),
+    ]);
   }
 
   async sendOrder(userId: number) {
@@ -262,12 +361,17 @@ export class OrderService {
     const order = await this.prismaService.order.findUnique({
       where: { id: orderId },
     });
+
     if (!order) {
       throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    if (order.userId !== user.sub || user.role !== Role.ADMIN) {
-      throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
+    if (order.userId !== user.sub && user.role !== Role.ADMIN) {
+      throw new HttpException(NOT_OWN_ORDER, HttpStatus.FORBIDDEN);
+    }
+
+    if (order.status !== (OrderStatus.PENDING as string)) {
+      throw new HttpException(STATUS_INCORRECT, HttpStatus.BAD_REQUEST);
     }
 
     await this.cacheManager.del(CacheKeys.ORDER(orderId));
@@ -279,7 +383,7 @@ export class OrderService {
     });
   }
 
-  async completeOrder(orderId: number) {
+  async confirmOrder(orderId: number) {
     const order = await this.prismaService.order.findUnique({
       where: { id: orderId },
     });
@@ -295,4 +399,6 @@ export class OrderService {
       data: { status: OrderStatus.COMPLETE },
     });
   }
+
+  async createOrderNotAuth() {}
 }

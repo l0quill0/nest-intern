@@ -50,11 +50,11 @@ export class CacheKeys {
   }
 
   static ITEMLISTPATTERN() {
-    return 'item_list_';
+    return '*item_list_*';
   }
 
   static ORDERLISTPATTERN() {
-    return 'order_list_';
+    return '*order_list_*';
   }
 
   static FAVOURITEPATTERN() {

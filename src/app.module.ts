@@ -25,10 +25,13 @@ import KeyvRedis from '@keyv/redis';
     CacheModule.register({
       isGlobal: true,
       stores: [
-        new Keyv({
-          store: new KeyvRedis('redis://localhost:6379'),
-          ttl: 1000 * 60,
-        }),
+        new Keyv(
+          {
+            store: new KeyvRedis('redis://localhost:6379'),
+            ttl: 1000 * 60 * 10,
+          },
+          { useKeyPrefix: false },
+        ),
       ],
     }),
     BucketModule,

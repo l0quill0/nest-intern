@@ -4,7 +4,7 @@ import { PrismaClient } from '../generated/prisma/index';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor() {
-    super({ omit: { user: { password: true } } });
+    super({ omit: { user: { password: true, isRegistered: true } } });
   }
 
   async onModuleInit() {

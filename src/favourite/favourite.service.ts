@@ -45,6 +45,7 @@ export class FavouriteService {
     }
 
     await this.cacheManager.del(CacheKeys.USERFAVOURITE(userId));
+    await this.cacheManager.del(CacheKeys.ITEM(itemId));
 
     return await this.prismaService.userFavourites.update({
       where: { userId },
@@ -67,6 +68,7 @@ export class FavouriteService {
     }
 
     await this.cacheManager.del(CacheKeys.USERFAVOURITE(userId));
+    await this.cacheManager.del(CacheKeys.ITEM(itemId));
 
     return await this.prismaService.userFavourites.update({
       where: { userId },

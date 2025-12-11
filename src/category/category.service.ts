@@ -1,14 +1,19 @@
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
-import { CATEGORY_NOT_FOUND } from './category.constants';
+import {
+  CATEGORY_ALREADY_EXISTS,
+  CATEGORY_NOT_FOUND,
+} from './category.constants';
 import { CacheKeys } from 'src/cache.keys';
+import { BucketService } from 'src/bucket/bucket.service';
 
 @Injectable()
 export class CategoryService {
   constructor(
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly prismaService: PrismaService,
+    private readonly bucketService: BucketService,
   ) {}
 
   async categoryGetAll() {
@@ -24,10 +29,24 @@ export class CategoryService {
     return categories;
   }
 
-  async categoryAdd(name: string) {
+  async categoryAdd(file: Express.Multer.File, name: string) {
+    const category = await this.prismaService.category.findUnique({
+      where: { name },
+    });
+
+    if (category) {
+      throw new HttpException(CATEGORY_ALREADY_EXISTS, HttpStatus.BAD_REQUEST);
+    }
+
+    const image = await this.bucketService.upload(
+      file.originalname,
+      file.buffer,
+      file.mimetype,
+    );
+
     await this.cacheManager.del(CacheKeys.CATEGORIES());
 
-    return await this.prismaService.category.create({ data: { name } });
+    return await this.prismaService.category.create({ data: { name, image } });
   }
 
   async categoryRemove(categoryId: number) {
@@ -38,7 +57,7 @@ export class CategoryService {
       },
     });
 
-    if (!category || category.name === 'uncategorized') {
+    if (!category || category.name === 'Інше') {
       throw new HttpException(CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
@@ -47,20 +66,19 @@ export class CategoryService {
     return await this.prismaService.$transaction(async (tx) => {
       await tx.category.delete({ where: { id: categoryId } });
       const itemsToUpdate = await tx.item.findMany({
-        where: { categories: { none: {} } },
+        where: { categoryName: category.name },
       });
       const updateItems = itemsToUpdate.map((item) => {
         return tx.item.update({
           where: { id: item.id },
           data: {
-            categories: {
-              connect: { name: 'uncategorized' },
-            },
+            categoryName: 'Інше',
           },
         });
       });
 
       await Promise.all(updateItems);
+      await this.bucketService.deleteItem(category.image);
     });
   }
 }

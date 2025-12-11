@@ -63,26 +63,24 @@ export class ItemService {
     if (search) {
       where.title = { contains: search, mode: 'insensitive' };
     }
-    const orderBy: Prisma.ItemOrderByWithRelationInput = {
-      [sortBy!]: sortOrder,
-    };
+    let orderBy: Prisma.ItemOrderByWithRelationInput | undefined = undefined;
+
+    if (sortBy && typeof sortBy === 'string') {
+      orderBy = { [sortBy]: sortOrder ?? 'asc' };
+    }
 
     const showActive: Prisma.ItemWhereInput = {
       isRemoved: false,
     };
 
     if (category && category.length > 0) {
-      const categoryCondition: Prisma.ItemWhereInput[] = category.map(
-        (name) => ({
-          categories: {
-            some: {
-              name,
-            },
-          },
-        }),
-      );
-      where.AND = [showActive, ...categoryCondition];
-    } else where.AND = [showActive];
+      where.category = {
+        name: {
+          in: category,
+        },
+      };
+    }
+    where.AND = [showActive];
 
     const [totalItems, items] = await this.prismaService.$transaction(
       async (tx) => {
@@ -113,7 +111,7 @@ export class ItemService {
     return returnValue;
   }
 
-  async getItemById(id: number) {
+  async getItemById(id: number, userId?: number) {
     const cacheKey = CacheKeys.ITEM(id);
     const cachedData = await this.cacheManager.get(cacheKey);
 
@@ -121,33 +119,49 @@ export class ItemService {
 
     const item = await this.prismaService.item.findUnique({
       where: { id },
-      include: { categories: true },
     });
 
-    if (item && !item.isRemoved) await this.cacheManager.set(cacheKey, item);
+    const isFavourite = await this.prismaService.item.findUnique({
+      where: {
+        id,
+        favouriteOf: {
+          some: {
+            userId,
+          },
+        },
+      },
+      include: { favouriteOf: true },
+    });
 
-    return item;
+    if (item && !item.isRemoved)
+      await this.cacheManager.set(cacheKey, {
+        ...item,
+        isInFavourite: !!isFavourite,
+      });
+
+    return {
+      ...item,
+      isInFavourite: !!isFavourite,
+    };
   }
 
   async createItem(file: Express.Multer.File, data: CreateItemDto) {
-    if (!data.categories || data.categories.length < 1) {
-      data.categories = ['uncategorized'];
+    if (!data.category) {
+      data.category = 'Інше';
     } else {
-      const existingCategories = await this.prismaService.category.findMany({
+      const category = await this.prismaService.category.findUnique({
         where: {
-          name: {
-            in: data.categories,
-          },
+          name: data.category,
         },
       });
 
-      if (existingCategories.length !== data.categories.length) {
+      if (!category) {
         throw new HttpException(NON_EXISTANT_CATEGORY, HttpStatus.BAD_REQUEST);
       }
     }
 
     const image = await this.bucketService.upload(
-      file.filename,
+      file.originalname,
       file.buffer,
       file.mimetype,
     );
@@ -160,11 +174,8 @@ export class ItemService {
         description: data.description,
         price: data.price,
         image,
-        categories: {
-          connect: data.categories.map((name) => ({ name })),
-        },
+        categoryName: data.category,
       },
-      include: { categories: true },
     });
   }
 
@@ -182,30 +193,21 @@ export class ItemService {
 
     let imageName: string | undefined;
 
-    if (data.categories) {
-      if (data.categories.length < 1) {
-        data.categories = ['uncategorized'];
-      } else {
-        const existingCategories = await this.prismaService.category.findMany({
-          where: {
-            name: {
-              in: data.categories,
-            },
-          },
-        });
+    if (data.category) {
+      const category = await this.prismaService.category.findUnique({
+        where: {
+          name: data.category,
+        },
+      });
 
-        if (existingCategories.length !== data.categories.length) {
-          throw new HttpException(
-            NON_EXISTANT_CATEGORY,
-            HttpStatus.BAD_REQUEST,
-          );
-        }
+      if (!category) {
+        throw new HttpException(NON_EXISTANT_CATEGORY, HttpStatus.BAD_REQUEST);
       }
     }
 
     if (file) {
       imageName = await this.bucketService.upload(
-        file.filename,
+        file.originalname,
         file.buffer,
         file.mimetype,
       );
@@ -224,12 +226,7 @@ export class ItemService {
         description: data.description,
         price: data.price,
         image: imageName,
-        categories: {
-          set: data.categories?.map((name) => ({ name })),
-        },
-      },
-      include: {
-        categories: true,
+        categoryName: data.category,
       },
     });
   }

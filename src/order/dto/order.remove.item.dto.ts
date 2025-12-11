@@ -2,9 +2,9 @@ import { IsNumber, IsOptional, Min } from 'class-validator';
 
 export class OrderRemoveItemDto {
   @IsNumber()
-  orderItemId: number;
+  itemId: number;
+  @IsOptional()
   @IsNumber()
   @Min(1)
-  @IsOptional()
   quantity?: number;
 }

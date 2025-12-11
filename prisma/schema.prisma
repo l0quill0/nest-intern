@@ -18,9 +18,10 @@ datasource db {
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
-  password  String 
-  name      String
+  password  String?   
+  name      String?
   role      String   @default("USER")
+  isRegistered Boolean @default(false)
   orders    Order[]
   favourites UserFavourites?
   createdAt DateTime @default(now())
@@ -35,13 +36,15 @@ model Item {
   isRemoved   Boolean @default(false)
   orderItems  OrderItem[]
   favouriteOf UserFavourites[] @relation("UserFavouritesItems")
-  categories  Category[] @relation("ItemCategories")
+  categoryName String
+  category  Category @relation(fields: [categoryName], references: [name])
 }
 
 model Category {
   id   Int    @id @default(autoincrement())
   name String @unique
-  items Item[] @relation("ItemCategories")
+  image String
+  items Item[]
 }
 
 model UserFavourites {
