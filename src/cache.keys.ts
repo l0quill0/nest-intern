@@ -28,8 +28,9 @@ export class CacheKeys {
     sortBy?: string,
     sortOrder?: string,
     category?: string[],
+    showRemoved?: boolean,
   ) {
-    return `item_list_${page}_${pageSize}_${search}_${priceMin}_${priceMax}_${sortBy}_${sortOrder}_${category?.toString()}`;
+    return `item_list_${page}_${pageSize}_${search}_${priceMin}_${priceMax}_${sortBy}_${sortOrder}_${category?.toString()}_${showRemoved}`;
   }
 
   static CURRENTORDER(userId: number) {

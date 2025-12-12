@@ -31,6 +31,7 @@ export class ItemService {
       sortBy,
       sortOrder,
       category,
+      showRemoved,
     } = options;
 
     const cacheKey = CacheKeys.ITEMLISTPAGINATION(
@@ -42,6 +43,7 @@ export class ItemService {
       sortBy,
       sortOrder,
       category,
+      showRemoved,
     );
 
     const cachedData = await this.cacheManager.get(cacheKey);
@@ -69,9 +71,7 @@ export class ItemService {
       orderBy = { [sortBy]: sortOrder ?? 'asc' };
     }
 
-    const showActive: Prisma.ItemWhereInput = {
-      isRemoved: false,
-    };
+    where.isRemoved = showRemoved ? undefined : false;
 
     if (category && category.length > 0) {
       where.category = {
@@ -80,7 +80,6 @@ export class ItemService {
         },
       };
     }
-    where.AND = [showActive];
 
     const [totalItems, items] = await this.prismaService.$transaction(
       async (tx) => {

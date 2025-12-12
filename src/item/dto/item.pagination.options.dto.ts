@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
@@ -67,4 +68,9 @@ export class ItemPaginationOptionsDto {
   })
   @IsArray()
   readonly category?: string[];
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true')
+  @IsBoolean()
+  readonly showRemoved?: boolean;
 }
