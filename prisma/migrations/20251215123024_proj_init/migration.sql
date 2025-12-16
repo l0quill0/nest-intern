@@ -19,6 +19,7 @@ CREATE TABLE "Item" (
     "image" TEXT NOT NULL,
     "price" DOUBLE PRECISION NOT NULL,
     "isRemoved" BOOLEAN NOT NULL DEFAULT false,
+    "categoryId" INTEGER NOT NULL,
 
     CONSTRAINT "Item_pkey" PRIMARY KEY ("id")
 );
@@ -27,6 +28,9 @@ CREATE TABLE "Item" (
 CREATE TABLE "Category" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "image" TEXT NOT NULL,
+    "immutable" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Category_pkey" PRIMARY KEY ("id")
 );
@@ -67,14 +71,6 @@ CREATE TABLE "_UserFavouritesItems" (
     CONSTRAINT "_UserFavouritesItems_AB_pkey" PRIMARY KEY ("A","B")
 );
 
--- CreateTable
-CREATE TABLE "_ItemCategories" (
-    "A" INTEGER NOT NULL,
-    "B" INTEGER NOT NULL,
-
-    CONSTRAINT "_ItemCategories_AB_pkey" PRIMARY KEY ("A","B")
-);
-
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -87,8 +83,8 @@ CREATE UNIQUE INDEX "UserFavourites_userId_key" ON "UserFavourites"("userId");
 -- CreateIndex
 CREATE INDEX "_UserFavouritesItems_B_index" ON "_UserFavouritesItems"("B");
 
--- CreateIndex
-CREATE INDEX "_ItemCategories_B_index" ON "_ItemCategories"("B");
+-- AddForeignKey
+ALTER TABLE "Item" ADD CONSTRAINT "Item_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserFavourites" ADD CONSTRAINT "UserFavourites_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -107,9 +103,3 @@ ALTER TABLE "_UserFavouritesItems" ADD CONSTRAINT "_UserFavouritesItems_A_fkey" 
 
 -- AddForeignKey
 ALTER TABLE "_UserFavouritesItems" ADD CONSTRAINT "_UserFavouritesItems_B_fkey" FOREIGN KEY ("B") REFERENCES "UserFavourites"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_ItemCategories" ADD CONSTRAINT "_ItemCategories_A_fkey" FOREIGN KEY ("A") REFERENCES "Category"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_ItemCategories" ADD CONSTRAINT "_ItemCategories_B_fkey" FOREIGN KEY ("B") REFERENCES "Item"("id") ON DELETE CASCADE ON UPDATE CASCADE;

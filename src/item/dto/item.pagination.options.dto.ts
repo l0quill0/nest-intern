@@ -9,7 +9,7 @@ import {
   Min,
 } from 'class-validator';
 
-const sortFields = ['title', 'price'];
+const sortFields = ['title', 'price', 'createdAt'];
 
 export class ItemPaginationOptionsDto {
   @IsOptional()
@@ -22,7 +22,7 @@ export class ItemPaginationOptionsDto {
   @IsNumber()
   @Type(() => Number)
   @Min(1)
-  readonly pageSize: number = 10;
+  readonly pageSize: number = 6;
 
   @IsOptional()
   @IsString()
@@ -49,7 +49,7 @@ export class ItemPaginationOptionsDto {
   @IsIn(sortFields, {
     message: `sortBy must be one of the following values: ${sortFields.join(', ')}`,
   })
-  readonly sortBy?: string = 'title';
+  readonly sortBy?: string = 'createdAt';
 
   @IsOptional()
   @IsString()

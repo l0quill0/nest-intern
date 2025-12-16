@@ -11,6 +11,8 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { BucketModule } from './bucket/bucket.module';
 import { RedisService } from './redis/redis.service';
 import { RedisModule } from './redis/redis.module';
+import { ItemCacheService } from './item-cache/item-cache.service';
+import { CategoryCacheService } from './category-cache/category-cache.service';
 import Keyv from 'keyv';
 import KeyvRedis from '@keyv/redis';
 
@@ -28,7 +30,7 @@ import KeyvRedis from '@keyv/redis';
         new Keyv(
           {
             store: new KeyvRedis('redis://localhost:6379'),
-            ttl: 1000 * 60 * 10,
+            ttl: 1000 * 60 * 30,
           },
           { useKeyPrefix: false },
         ),
@@ -38,6 +40,6 @@ import KeyvRedis from '@keyv/redis';
     RedisModule,
   ],
   controllers: [AppController],
-  providers: [AppService, RedisService],
+  providers: [AppService, RedisService, ItemCacheService, CategoryCacheService],
 })
 export class AppModule {}

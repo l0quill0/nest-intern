@@ -8,16 +8,15 @@ async function main() {
     where: { name: 'Інше' },
     update: {},
     create: {
-      name: 'Інше',
+      name: 'інше',
       image: '',
+      slug: 'other',
+      immutable: true,
     },
   });
 
   const salt = await bcrypt.genSalt();
-  const hashedPassword = await bcrypt.hash(
-    process.env.ADMIN_PASS as string,
-    salt,
-  );
+  const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASS!, salt);
 
   await prisma.user.upsert({
     where: { email: 'admin@gmail.com' },

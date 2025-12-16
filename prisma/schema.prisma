@@ -34,16 +34,19 @@ model Item {
   image       String
   price       Float
   isRemoved   Boolean @default(false)
+  createdAt DateTime @default(now())
   orderItems  OrderItem[]
   favouriteOf UserFavourites[] @relation("UserFavouritesItems")
-  categoryName String
-  category  Category @relation(fields: [categoryName], references: [name])
+  categoryId Int
+  category  Category @relation(fields: [categoryId], references: [id])
 }
 
 model Category {
   id   Int    @id @default(autoincrement())
   name String @unique
+  slug String @unique
   image String
+  immutable Boolean @default(false)
   items Item[]
 }
 

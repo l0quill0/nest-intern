@@ -88,6 +88,13 @@ export class ItemController {
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, roleGuard.RolesGuard)
+  @Patch('return/:id')
+  async restoreItem(@Param('id', ParseIntPipe) itemId: number) {
+    return await this.itemService.restoreItem(itemId);
+  }
+
+  @Roles([Role.ADMIN])
+  @UseGuards(JwtGuard, roleGuard.RolesGuard)
   @Delete(':id')
   async deleteItem(@Param('id', ParseIntPipe) id: number) {
     return await this.itemService.deleteItem(id);

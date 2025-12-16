@@ -9,6 +9,7 @@ import {
   ParseFilePipe,
   ParseIntPipe,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -21,6 +22,7 @@ import { CategoryService } from './category.service';
 import { CategoryCreateDto } from './dto/category.create.dto';
 import 'multer';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { CategoryPaginationOptionsDto } from './dto/category.pagination.options.dto';
 
 const maxImageSize = 5 * 1024 * 1024;
 
@@ -29,6 +31,11 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get('')
+  async getPaginatedCategories(@Query() dto: CategoryPaginationOptionsDto) {
+    return await this.categoryService.categoryGetPaginated(dto);
+  }
+
+  @Get('all')
   async getAllCategories() {
     return await this.categoryService.categoryGetAll();
   }

@@ -1,6 +1,5 @@
-import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { IUserJWT } from './../auth/guards/role.guard';
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 import { OrderStatus } from './order.enum';
 import {
@@ -15,31 +14,15 @@ import { OrderAddItemDto } from './dto/order.add.item.dto';
 import { OrderRemoveItemDto } from './dto/order.remove.item.dto';
 import { Role } from 'src/auth/role.enum';
 import { OrderPaginationOptionsDto } from './dto/order.pagination.options.dto';
-import { Order, Prisma, OrderItem } from 'generated/prisma';
-import { RedisService } from 'src/redis/redis.service';
-import { CacheKeys } from 'src/cache.keys';
+import { Prisma } from 'generated/prisma';
 import { IOrder } from './dto/order.return.dto';
 
 @Injectable()
 export class OrderService {
-  constructor(
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-    private readonly prismaService: PrismaService,
-    private readonly redisService: RedisService,
-  ) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
   async getPaginatedOrders(user: IUserJWT, options: OrderPaginationOptionsDto) {
     const { page, pageSize, sortBy, sortOrder } = options;
-
-    const cacheKey = CacheKeys.ORDERLISTPAGINATION(
-      page,
-      pageSize,
-      sortBy,
-      sortOrder,
-    );
-    const cachedData = await this.cacheManager.get(cacheKey);
-
-    if (cachedData) return cachedData;
 
     const skip = (page - 1) * pageSize;
     const where: Prisma.OrderWhereInput = {
@@ -66,7 +49,15 @@ export class OrderService {
           include: {
             items: {
               include: {
-                item: true,
+                item: {
+                  include: {
+                    category: {
+                      select: {
+                        name: true,
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -97,22 +88,24 @@ export class OrderService {
       },
     };
 
-    await this.cacheManager.set(cacheKey, paginatedOrders);
-
     return paginatedOrders;
   }
 
   async getCurrentOrder(userId: number) {
-    const cacheKey = CacheKeys.CURRENTORDER(userId);
-    const cachedData = await this.cacheManager.get(cacheKey);
-    if (cachedData) return cachedData;
-
     const currentOrder = await this.prismaService.order.findFirst({
       where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
       include: {
         items: {
           include: {
-            item: true,
+            item: {
+              include: {
+                category: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -130,8 +123,6 @@ export class OrderService {
       })),
     };
 
-    await this.cacheManager.set(cacheKey, order);
-
     return order;
   }
 
@@ -140,35 +131,30 @@ export class OrderService {
       data: { userId },
       include: { items: true },
     });
-    const cacheKey = CacheKeys.CURRENTORDER(userId);
 
     const order: IOrder = {
       ...currentOrder,
       items: [],
     };
 
-    await this.cacheManager.set(cacheKey, order);
     return order;
   }
 
   async getOrderById(user: IUserJWT, orderId: number) {
-    const cacheKey = CacheKeys.ORDER(orderId);
-    const cachedData = await this.cacheManager.get<
-      Order & { items: OrderItem[] }
-    >(cacheKey);
-    if (cachedData) {
-      if (cachedData.userId !== user.sub && user.role !== Role.ADMIN) {
-        throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
-      }
-      return cachedData;
-    }
-
     const order = await this.prismaService.order.findUnique({
       where: { id: orderId },
       include: {
         items: {
           include: {
-            item: true,
+            item: {
+              include: {
+                category: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -189,8 +175,6 @@ export class OrderService {
         quantity: item.quantity,
       })),
     };
-
-    await this.cacheManager.set(cacheKey, returnOrder);
 
     return returnOrder;
   }
@@ -226,8 +210,6 @@ export class OrderService {
     });
 
     const orderTotal = currentOrder.total + item.price * quantity;
-
-    await this.cacheManager.del(CacheKeys.CURRENTORDER(userId));
 
     if (itemInOrder) {
       return await this.prismaService.$transaction([
@@ -283,8 +265,6 @@ export class OrderService {
       throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
     }
 
-    await this.cacheManager.del(CacheKeys.CURRENTORDER(userId));
-
     if (quantity && quantity < orderItem.quantity) {
       return await this.prismaService.$transaction([
         this.prismaService.orderItem.update({
@@ -323,8 +303,6 @@ export class OrderService {
     if (!currentOrder || currentOrder.items.length < 1) {
       throw new HttpException(ORDER_EMPTY, HttpStatus.BAD_REQUEST);
     }
-    await this.cacheManager.del(CacheKeys.CURRENTORDER(userId));
-    await this.redisService.clearByPattern(CacheKeys.ORDERLISTPATTERN());
 
     return await this.prismaService.$transaction([
       this.prismaService.orderItem.deleteMany({
@@ -347,9 +325,6 @@ export class OrderService {
     if (!currentOrder || currentOrder.items.length < 1) {
       throw new HttpException(ORDER_EMPTY, HttpStatus.BAD_REQUEST);
     }
-
-    await this.cacheManager.del(CacheKeys.CURRENTORDER(userId));
-    await this.redisService.clearByPattern(CacheKeys.ORDERLISTPATTERN());
 
     return await this.prismaService.order.update({
       where: { id: currentOrder.id },
@@ -374,9 +349,6 @@ export class OrderService {
       throw new HttpException(STATUS_INCORRECT, HttpStatus.BAD_REQUEST);
     }
 
-    await this.cacheManager.del(CacheKeys.ORDER(orderId));
-    await this.redisService.clearByPattern(CacheKeys.ORDERLISTPATTERN());
-
     return await this.prismaService.order.update({
       where: { id: order.id },
       data: { status: OrderStatus.CANCELED },
@@ -391,14 +363,9 @@ export class OrderService {
       throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    await this.cacheManager.del(CacheKeys.ORDER(orderId));
-    await this.redisService.clearByPattern(CacheKeys.ORDERLISTPATTERN());
-
     return await this.prismaService.order.update({
       where: { id: order.id },
       data: { status: OrderStatus.COMPLETE },
     });
   }
-
-  async createOrderNotAuth() {}
 }

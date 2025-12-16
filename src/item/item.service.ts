@@ -1,6 +1,6 @@
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
-import { Prisma } from 'generated/prisma';
+import { Category, Prisma } from 'generated/prisma';
 import { UpdateItemDto } from './dto/update.item.dto';
 import { ITEM_NOT_FOUND } from './item.constants';
 import { ItemPaginationOptionsDto } from './dto/item.pagination.options.dto';
@@ -8,17 +8,16 @@ import { BucketService } from 'src/bucket/bucket.service';
 import { CreateItemDto } from './dto/create.item.dto';
 import { NON_EXISTANT_CATEGORY } from 'src/category/category.constants';
 import 'multer';
-import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
-import { CacheKeys } from 'src/cache.keys';
-import { RedisService } from 'src/redis/redis.service';
+import { CategoryService } from 'src/category/category.service';
+import { ItemCacheService } from 'src/item-cache/item-cache.service';
 
 @Injectable()
 export class ItemService {
   constructor(
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly prismaService: PrismaService,
     private readonly bucketService: BucketService,
-    private readonly redisService: RedisService,
+    private readonly categoryService: CategoryService,
+    private readonly itemCacheService: ItemCacheService,
   ) {}
 
   async paginateItems(options: ItemPaginationOptionsDto) {
@@ -34,21 +33,20 @@ export class ItemService {
       showRemoved,
     } = options;
 
-    const cacheKey = CacheKeys.ITEMLISTPAGINATION(
-      page,
-      pageSize,
-      search,
-      priceMin,
-      priceMax,
-      sortBy,
-      sortOrder,
-      category,
-      showRemoved,
-    );
+    const cached =
+      Object.keys(options).filter(
+        (k) => options[k] !== undefined && options[k] !== 'category',
+      ).length === 0 &&
+      (category === undefined ||
+        (category.length === 1 &&
+          this.categoryService.validateCategories(category)));
 
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const cacheKey = category?.join('');
 
-    if (cachedData) return cachedData;
+    if (cached) {
+      const cachedData = await this.itemCacheService.getItemCache(cacheKey);
+      if (cachedData) return cachedData;
+    }
 
     const skip = (page - 1) * pageSize;
     const where: Prisma.ItemWhereInput = {};
@@ -75,7 +73,7 @@ export class ItemService {
 
     if (category && category.length > 0) {
       where.category = {
-        name: {
+        slug: {
           in: category,
         },
       };
@@ -89,12 +87,21 @@ export class ItemService {
           orderBy,
           skip,
           take: pageSize,
+          omit: { categoryId: true },
+          include: {
+            category: {
+              select: {
+                name: true,
+              },
+            },
+          },
         });
         return [totalItems, items];
       },
     );
 
     const totalPages = Math.ceil(totalItems / pageSize);
+
     const returnValue = {
       data: items,
       meta: {
@@ -105,20 +112,22 @@ export class ItemService {
         currentPage: page,
       },
     };
-    await this.cacheManager.set(cacheKey, returnValue);
+
+    if (cached) await this.itemCacheService.setItemCache(returnValue, cacheKey);
 
     return returnValue;
   }
 
   async getItemById(id: number, userId?: number) {
-    const cacheKey = CacheKeys.ITEM(id);
-    const cachedData = await this.cacheManager.get(cacheKey);
-
-    if (cachedData) return cachedData;
-
     const item = await this.prismaService.item.findUnique({
       where: { id },
+      include: { category: { select: { name: true, slug: true } } },
+      omit: { categoryId: true },
     });
+
+    if (!item) {
+      throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
 
     const isFavourite = await this.prismaService.item.findUnique({
       where: {
@@ -132,12 +141,6 @@ export class ItemService {
       include: { favouriteOf: true },
     });
 
-    if (item && !item.isRemoved)
-      await this.cacheManager.set(cacheKey, {
-        ...item,
-        isInFavourite: !!isFavourite,
-      });
-
     return {
       ...item,
       isInFavourite: !!isFavourite,
@@ -145,18 +148,14 @@ export class ItemService {
   }
 
   async createItem(file: Express.Multer.File, data: CreateItemDto) {
-    if (!data.category) {
-      data.category = 'Інше';
-    } else {
-      const category = await this.prismaService.category.findUnique({
-        where: {
-          name: data.category,
-        },
-      });
+    const category = await this.prismaService.category.findFirst({
+      where: {
+        slug: data.category,
+      },
+    });
 
-      if (!category) {
-        throw new HttpException(NON_EXISTANT_CATEGORY, HttpStatus.BAD_REQUEST);
-      }
+    if (!category) {
+      throw new HttpException(NON_EXISTANT_CATEGORY, HttpStatus.BAD_REQUEST);
     }
 
     const image = await this.bucketService.upload(
@@ -165,7 +164,7 @@ export class ItemService {
       file.mimetype,
     );
 
-    await this.redisService.clearByPattern(CacheKeys.ITEMLISTPATTERN());
+    await this.itemCacheService.clearItemCache(data.category);
 
     return await this.prismaService.item.create({
       data: {
@@ -173,7 +172,7 @@ export class ItemService {
         description: data.description,
         price: data.price,
         image,
-        categoryName: data.category,
+        categoryId: category.id,
       },
     });
   }
@@ -185,6 +184,9 @@ export class ItemService {
   ) {
     const item = await this.prismaService.item.findUnique({
       where: { id },
+      include: {
+        category: { select: { slug: true } },
+      },
     });
     if (!item || item.isRemoved) {
       throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -192,16 +194,20 @@ export class ItemService {
 
     let imageName: string | undefined;
 
+    let category: Category | null = null;
+
     if (data.category) {
-      const category = await this.prismaService.category.findUnique({
+      category = await this.prismaService.category.findFirst({
         where: {
-          name: data.category,
+          slug: data.category,
         },
       });
 
       if (!category) {
         throw new HttpException(NON_EXISTANT_CATEGORY, HttpStatus.BAD_REQUEST);
       }
+
+      await this.itemCacheService.clearItemCache(data.category);
     }
 
     if (file) {
@@ -214,9 +220,7 @@ export class ItemService {
       await this.bucketService.deleteItem(item.image);
     }
 
-    await this.cacheManager.del(CacheKeys.ITEM(id));
-    await this.redisService.clearByPattern(CacheKeys.ITEMLISTPATTERN());
-    await this.redisService.clearByPattern(CacheKeys.FAVOURITEPATTERN());
+    await this.itemCacheService.clearItemCache(item.category.slug);
 
     return await this.prismaService.item.update({
       where: { id },
@@ -225,25 +229,44 @@ export class ItemService {
         description: data.description,
         price: data.price,
         image: imageName,
-        categoryName: data.category,
+        categoryId: category ? category.id : undefined,
+      },
+    });
+  }
+
+  async restoreItem(id: number) {
+    const item = await this.prismaService.item.findUnique({
+      where: { id },
+      include: { category: { select: { slug: true } } },
+    });
+    if (!item) {
+      throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    await this.itemCacheService.clearItemCache(item.category.slug);
+
+    return await this.prismaService.item.update({
+      where: { id },
+      data: {
+        isRemoved: false,
       },
     });
   }
 
   async deleteItem(id: number) {
-    const item = await this.prismaService.item.findUnique({ where: { id } });
+    const item = await this.prismaService.item.findUnique({
+      where: { id },
+      include: { category: { select: { slug: true } } },
+    });
     if (!item) {
       throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    await this.cacheManager.del(CacheKeys.ITEM(id));
-    await this.redisService.clearByPattern(CacheKeys.ITEMLISTPATTERN());
-    await this.redisService.clearByPattern(CacheKeys.FAVOURITEPATTERN());
-    await this.bucketService.deleteItem(item.image);
+    await this.itemCacheService.clearItemCache(item.category.slug);
 
     return await this.prismaService.item.update({
       where: { id },
-      data: { isRemoved: true, image: 'placeholder' },
+      data: { isRemoved: true },
     });
   }
 }
