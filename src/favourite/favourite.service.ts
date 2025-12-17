@@ -10,7 +10,18 @@ export class FavouriteService {
   async getFavourites(userId: number) {
     const favourites = await this.prismaService.userFavourites.findUnique({
       where: { userId },
-      include: { items: true },
+      include: {
+        items: {
+          omit: { categoryId: true },
+          include: {
+            category: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     return favourites;
