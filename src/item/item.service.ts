@@ -177,6 +177,25 @@ export class ItemService {
     });
   }
 
+  async getSuggestions(itemId: number, itemCount: number) {
+    const item = await this.prismaService.item.findUnique({
+      where: { id: itemId },
+    });
+
+    if (!item) {
+      throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    const suggestions = await this.prismaService.item.findMany({
+      where: { NOT: [{ id: item.id }], AND: [{ categoryId: item.categoryId }] },
+      include: { category: true },
+      omit: { categoryId: true },
+      take: itemCount,
+    });
+
+    return suggestions;
+  }
+
   async updateItemInfo(
     id: number,
     data: UpdateItemDto,

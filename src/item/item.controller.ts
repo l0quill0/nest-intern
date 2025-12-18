@@ -26,12 +26,18 @@ import { CreateItemDto } from './dto/create.item.dto';
 import { UpdateItemDto } from './dto/update.item.dto';
 import { ItemPaginationOptionsDto } from './dto/item.pagination.options.dto';
 import { Me } from 'src/user/decorators/me.decorator';
+import { SuggestionQueryDto } from './dto/suggestions.query.dto';
 
 const maxImageSize = 5 * 1024 * 1024;
 
 @Controller('item')
 export class ItemController {
   constructor(private readonly itemService: ItemService) {}
+
+  @Get('suggestions')
+  async getSuggestion(@Query() dto: SuggestionQueryDto) {
+    return await this.itemService.getSuggestions(dto.itemId, dto.itemCount);
+  }
 
   @Get(':id')
   async getItemById(

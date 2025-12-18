@@ -71,11 +71,13 @@ export class UserService {
       omit: { password: false },
     });
 
-    if (!user || !user.isRegistered || !user.password) {
+    if (!user || !user.password) {
       throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    if (await bcrypt.compare(oldPassword, user.password)) {
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+
+    if (!isMatch) {
       throw new HttpException(WRONG_OLD_PASSWORD, HttpStatus.BAD_REQUEST);
     }
 

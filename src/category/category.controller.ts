@@ -8,6 +8,7 @@ import {
   Param,
   ParseFilePipe,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -23,6 +24,7 @@ import { CategoryCreateDto } from './dto/category.create.dto';
 import 'multer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CategoryPaginationOptionsDto } from './dto/category.pagination.options.dto';
+import { UpdateCategoryDto } from './dto/update.category.dto';
 
 const maxImageSize = 5 * 1024 * 1024;
 
@@ -42,6 +44,13 @@ export class CategoryController {
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
+  @Get(':id')
+  async getCategoryById(@Param('id') id: number) {
+    return await this.categoryService.getCategoryById(id);
+  }
+
+  @Roles([Role.ADMIN])
+  @UseGuards(JwtGuard, RolesGuard)
   @Post('')
   @UseInterceptors(FileInterceptor('file'))
   async addCategory(
@@ -57,6 +66,27 @@ export class CategoryController {
     @Body() data: CategoryCreateDto,
   ) {
     return await this.categoryService.categoryAdd(file, data.name);
+  }
+
+  @Roles([Role.ADMIN])
+  @UseGuards(JwtGuard, RolesGuard)
+  @Patch(':id')
+  @UseInterceptors(FileInterceptor('file'))
+  async updateCategory(
+    @UploadedFile(
+      new ParseFilePipe({
+        fileIsRequired: false,
+        validators: [
+          new MaxFileSizeValidator({ maxSize: maxImageSize }),
+          new FileTypeValidator({ fileType: 'image/jpeg' }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @Param('id') id: number,
+    @Body() data: UpdateCategoryDto,
+  ) {
+    return await this.categoryService.updateCategory(id, data, file);
   }
 
   @Roles([Role.ADMIN])

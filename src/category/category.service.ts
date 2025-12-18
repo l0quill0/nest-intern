@@ -9,6 +9,7 @@ import unidecode from 'unidecode';
 import { CategoryPaginationOptionsDto } from './dto/category.pagination.options.dto';
 import { CategoryCacheService } from 'src/category-cache/category-cache.service';
 import { ItemCacheService } from 'src/item-cache/item-cache.service';
+import { UpdateCategoryDto } from './dto/update.category.dto';
 
 @Injectable()
 export class CategoryService {
@@ -70,6 +71,18 @@ export class CategoryService {
     return returnValue;
   }
 
+  async getCategoryById(id: number) {
+    const category = await this.prismaService.category.findUnique({
+      where: { id },
+    });
+
+    if (!category) {
+      throw new HttpException(CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    return category;
+  }
+
   async categoryAdd(file: Express.Multer.File, name: string) {
     const category = await this.prismaService.category.findUnique({
       where: { name },
@@ -94,6 +107,52 @@ export class CategoryService {
     });
   }
 
+  async updateCategory(
+    id: number,
+    data: UpdateCategoryDto,
+    file?: Express.Multer.File,
+  ) {
+    if (!file && !data.name) return;
+
+    const category = await this.prismaService.category.findUnique({
+      where: { id },
+    });
+
+    if (!category) {
+      throw new HttpException(CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    let image: string | undefined;
+
+    if (file) {
+      image = await this.bucketService.upload(
+        file.originalname,
+        file.buffer,
+        file.mimetype,
+      );
+      await this.bucketService.deleteItem(category.image);
+    }
+
+    let slug: string | undefined;
+
+    if (data.name) {
+      slug = unidecode(data.name).toLowerCase();
+    }
+
+    await this.categoryCacheService.clearCategoryCache();
+    await this.itemCacheService.clearItemCache();
+    await this.itemCacheService.clearItemCache(category.slug);
+
+    return await this.prismaService.category.update({
+      where: { id },
+      data: {
+        image,
+        name: data.name,
+        slug,
+      },
+    });
+  }
+
   async categoryRemove(categoryId: number) {
     const category = await this.prismaService.category.findUnique({
       where: { id: categoryId },
@@ -110,14 +169,15 @@ export class CategoryService {
     await this.itemCacheService.clearItemCache();
     await this.itemCacheService.clearItemCache(category.slug);
 
-    return await this.prismaService.$transaction(async (tx) => {
+    await this.prismaService.$transaction(async (tx) => {
       await tx.item.updateMany({
         where: { categoryId: category.id },
         data: { categoryId: 1 },
       });
       await tx.category.delete({ where: { id: categoryId } });
-      await this.bucketService.deleteItem(category.image);
     });
+
+    await this.bucketService.deleteItem(category.image);
   }
 
   async validateCategories(categories: string[]) {
