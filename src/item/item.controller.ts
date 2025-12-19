@@ -27,6 +27,7 @@ import { UpdateItemDto } from './dto/update.item.dto';
 import { ItemPaginationOptionsDto } from './dto/item.pagination.options.dto';
 import { Me } from 'src/user/decorators/me.decorator';
 import { SuggestionQueryDto } from './dto/suggestions.query.dto';
+import { OptionalJwtGuard } from 'src/auth/guards/optional.jwt.guard';
 
 const maxImageSize = 5 * 1024 * 1024;
 
@@ -39,6 +40,7 @@ export class ItemController {
     return await this.itemService.getSuggestions(dto.itemId, dto.itemCount);
   }
 
+  @UseGuards(OptionalJwtGuard)
   @Get(':id')
   async getItemById(
     @Param('id', ParseIntPipe) id: number,

@@ -129,7 +129,7 @@ export class ItemService {
       throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    const isFavourite = await this.prismaService.item.findUnique({
+    const isFavourite = await this.prismaService.item.findFirst({
       where: {
         id,
         favouriteOf: {
