@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   await prisma.category.upsert({
-    where: { name: 'Інше' },
+    where: { slug: 'other' },
     update: {},
     create: {
       name: 'інше',

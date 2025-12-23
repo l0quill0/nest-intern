@@ -29,7 +29,7 @@ import KeyvRedis from '@keyv/redis';
       stores: [
         new Keyv(
           {
-            store: new KeyvRedis('redis://localhost:6379'),
+            store: new KeyvRedis(process.env.REDIS_URL),
             ttl: 1000 * 60 * 30,
           },
           { useKeyPrefix: false },
