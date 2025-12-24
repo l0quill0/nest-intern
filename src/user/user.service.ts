@@ -7,6 +7,7 @@ import { USER_NOT_FOUND, WRONG_OLD_PASSWORD } from './user.constants';
 import { UpdatePasswordDto } from './dto/updatePassword.dto';
 import { CreateUserDto } from './dto/create.user.dto';
 import { BaseUserDto } from './dto/base.user.dto';
+import { OrderStatus } from 'src/order/order.enum';
 
 @Injectable()
 export class UserService {
@@ -29,6 +30,37 @@ export class UserService {
     }
 
     return user;
+  }
+
+  async getCount(id: number) {
+    const user = await this.prismaService.user.findUnique({ where: { id } });
+
+    if (!user) {
+      throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    const favCount = await this.prismaService.userFavourites.findUnique({
+      where: { userId: id },
+      include: {
+        _count: {
+          select: { items: true },
+        },
+      },
+    });
+
+    const cart = await this.prismaService.order.findFirst({
+      where: { AND: [{ userId: id }, { status: OrderStatus.INCOMPLETE }] },
+    });
+
+    if (!cart) {
+      return { favCount: favCount?._count.items, cartCount: 0 };
+    }
+
+    const cartCount = await this.prismaService.orderItem.count({
+      where: { orderId: cart.id },
+    });
+
+    return { favCount: favCount?._count.items, cartCount };
   }
 
   async createUser(data: CreateUserDto) {

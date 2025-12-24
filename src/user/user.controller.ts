@@ -31,6 +31,12 @@ export class UserController {
     return await this.userService.getUserByEmail(user.email);
   }
 
+  @UseGuards(JwtGuard)
+  @Get('count')
+  async getCount(@Me() user: roleGuard.IUserJWT) {
+    return await this.userService.getCount(user.sub);
+  }
+
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, roleGuard.RolesGuard)
   @Patch('update/:id')
