@@ -21,7 +21,6 @@ model User {
   password  String?   
   name      String?
   role      String   @default("USER")
-  isRegistered Boolean @default(false)
   orders    Order[]
   favourites UserFavourites?
   createdAt DateTime @default(now())

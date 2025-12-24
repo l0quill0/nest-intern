@@ -11,19 +11,17 @@ import {
 import bcrypt from 'node_modules/bcryptjs';
 import { CreateUserDto } from 'src/user/dto/create.user.dto';
 import { User } from 'generated/prisma';
-import { PrismaService } from 'src/prisma.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prismaService: PrismaService,
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
   ) {}
 
   async register(data: CreateUserDto): Promise<User | null> {
     const user = await this.userService.getUserByEmail(data.email);
-    if (user && user.isRegistered) {
+    if (user) {
       throw new HttpException(
         USER_ALREADY_EXISTS_ERROR,
         HttpStatus.BAD_REQUEST,
@@ -32,13 +30,6 @@ export class AuthService {
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(data.password, salt);
-
-    if (user && !user.isRegistered) {
-      return await this.prismaService.user.update({
-        where: { email: data.email },
-        data: { password: hashedPassword, name: data.name },
-      });
-    }
 
     return await this.userService.createUser({
       ...data,

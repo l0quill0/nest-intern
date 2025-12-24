@@ -33,17 +33,7 @@ export class UserService {
 
   async createUser(data: CreateUserDto) {
     return await this.prismaService.user.create({
-      data: { ...data, isRegistered: true, favourites: { create: {} } },
-    });
-  }
-
-  async createUserAuto(email: string) {
-    const user = await this.prismaService.user.findUnique({ where: { email } });
-
-    if (user) return user;
-
-    return await this.prismaService.user.create({
-      data: { email, favourites: { create: {} } },
+      data: { ...data, favourites: { create: {} } },
     });
   }
 

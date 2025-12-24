@@ -5,7 +5,6 @@ CREATE TABLE "User" (
     "password" TEXT,
     "name" TEXT,
     "role" TEXT NOT NULL DEFAULT 'USER',
-    "isRegistered" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")

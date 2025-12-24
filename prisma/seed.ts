@@ -26,7 +26,6 @@ async function main() {
       password: hashedPassword,
       name: 'Alexander',
       role: 'ADMIN',
-      isRegistered: true,
       favourites: { create: {} },
     },
   });
