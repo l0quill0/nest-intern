@@ -1,6 +1,7 @@
 import { Bucket, Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { GacKey } from './gac.key.type';
 
 @Injectable()
 export class BucketService {
@@ -8,7 +9,15 @@ export class BucketService {
   private bucket: Bucket;
 
   constructor() {
-    this.storage = new Storage();
+    const raw = process.env.GAC_KEY;
+
+    let key = {} as GacKey;
+
+    if (raw) {
+      key = JSON.parse(raw) as GacKey;
+    }
+
+    this.storage = new Storage({ projectId: key.project_id, credentials: key });
     this.bucket = this.storage.bucket('nest-intern-bucket');
   }
 
