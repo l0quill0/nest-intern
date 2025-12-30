@@ -17,8 +17,7 @@ export class BucketService {
       key = JSON.parse(raw) as GacKey;
     }
 
-    this.storage =
-      new Storage(/*{ projectId: key.project_id, credentials: key }*/);
+    this.storage = new Storage({ projectId: key.project_id, credentials: key });
     this.bucket = this.storage.bucket('nest-intern-bucket');
   }
 
