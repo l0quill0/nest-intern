@@ -5,5 +5,6 @@ export interface IOrder {
   status: string;
   total: number;
   createdAt: Date;
+  postOffice: string | null;
   items: (Item & { quantity: number })[];
 }
