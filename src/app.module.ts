@@ -13,8 +13,12 @@ import { RedisService } from './redis/redis.service';
 import { RedisModule } from './redis/redis.module';
 import { ItemCacheService } from './item-cache/item-cache.service';
 import { CategoryCacheService } from './category-cache/category-cache.service';
+import { PostModule } from './post/post.module';
+import { PostCacheService } from './post-cache/post-cache.service';
+import { PostCacheModule } from './post-cache/post-cache.module';
 import Keyv from 'keyv';
 import KeyvRedis from '@keyv/redis';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -24,6 +28,7 @@ import KeyvRedis from '@keyv/redis';
     OrderModule,
     CategoryModule,
     FavouriteModule,
+    ScheduleModule.forRoot(),
     CacheModule.register({
       isGlobal: true,
       stores: [
@@ -38,8 +43,16 @@ import KeyvRedis from '@keyv/redis';
     }),
     BucketModule,
     RedisModule,
+    PostModule,
+    PostCacheModule,
   ],
   controllers: [AppController],
-  providers: [AppService, RedisService, ItemCacheService, CategoryCacheService],
+  providers: [
+    AppService,
+    RedisService,
+    ItemCacheService,
+    CategoryCacheService,
+    PostCacheService,
+  ],
 })
 export class AppModule {}

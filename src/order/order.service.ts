@@ -315,7 +315,7 @@ export class OrderService {
     ]);
   }
 
-  async sendOrder(userId: number) {
+  async sendOrder(userId: number, postOffice: string) {
     const currentOrder = await this.prismaService.order.findFirst({
       where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
       include: {
@@ -328,7 +328,11 @@ export class OrderService {
 
     return await this.prismaService.order.update({
       where: { id: currentOrder.id },
-      data: { status: OrderStatus.PENDING, createdAt: new Date(Date.now()) },
+      data: {
+        status: OrderStatus.PENDING,
+        createdAt: new Date(Date.now()),
+        postOffice,
+      },
     });
   }
 

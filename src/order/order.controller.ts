@@ -84,8 +84,11 @@ export class OrderController {
 
   @UseGuards(JwtGuard)
   @Patch('send')
-  async sendOrder(@Me() user: roleGuard.IUserJWT) {
-    return await this.orderService.sendOrder(user.sub);
+  async sendOrder(
+    @Me() user: roleGuard.IUserJWT,
+    @Body() data: { postOffice: string },
+  ) {
+    return await this.orderService.sendOrder(user.sub, data.postOffice);
   }
 
   @UseGuards(JwtGuard)
