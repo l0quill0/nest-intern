@@ -35,25 +35,16 @@ export class PostCacheService implements OnModuleInit {
   }
 
   async getCache() {
-    return await this.cacheManager.get('ALL_OFFICES');
+    return await this.cacheManager.get<IPostOffice[]>('ALL_OFFICES');
   }
 
   async getOfficeByRegion(regionKey: string) {
     const region = PostRegions[regionKey as keyof typeof PostRegions] as string;
 
-    const cached = await this.cacheManager.get(`OFFICES_${region}`);
-    if (!cached) {
-      const allOffices =
-        await this.cacheManager.get<IPostOffice[]>(`ALL_OFFICES`);
-      if (!allOffices) return [];
+    const cached = await this.getCache();
 
-      const filtered = allOffices.filter((office) => office.region === region);
-
-      if (filtered.length > 0) {
-        await this.cacheManager.set(`OFFICES_${region}`, filtered);
-        return filtered;
-      } else return [];
-    }
-    return cached;
+    if (!cached || !region) return [];
+    const res = cached.filter((office) => office.region === region);
+    return res;
   }
 }
