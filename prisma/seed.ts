@@ -44,8 +44,6 @@ async function main() {
     throw new Error('Nova post jwt token missing');
   }
 
-  console.log(novaPostJWT);
-
   let hasNextPage = true;
   let currentPage = 1;
   const existingRegions = new Set();
@@ -108,7 +106,6 @@ async function main() {
 
     hasNextPage = page.current_page !== page.last_page;
     currentPage++;
-    console.log(currentPage, hasNextPage, page.current_page, page.last_page);
   }
 }
 
