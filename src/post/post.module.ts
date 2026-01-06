@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PostService } from './post.service';
-import { HttpModule } from '@nestjs/axios';
+import { PostCacheService } from 'src/post-cache/post-cache.service';
+import { PostController } from './post.controller';
+import { PrismaService } from 'src/prisma.service';
 
 @Module({
-  imports: [HttpModule],
-  providers: [PostService],
+  controllers: [PostController],
+  providers: [PostService, PostCacheService, PrismaService],
   exports: [PostService],
 })
 export class PostModule {}

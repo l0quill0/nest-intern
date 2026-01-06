@@ -1,50 +1,32 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { PostService } from 'src/post/post.service';
-import { PostRegions } from 'src/post/post.regions.enum';
-import { IPostOffice } from 'src/post/types/post.office.type';
 
 @Injectable()
-export class PostCacheService implements OnModuleInit {
-  private readonly logger = new Logger(PostCacheService.name);
-  constructor(
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-    private readonly postService: PostService,
-  ) {}
+export class PostCacheService {
+  constructor(@Inject(CACHE_MANAGER) private readonly cacheManager: Cache) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
-  async cronSyncCache() {
-    await this.syncCache();
+  async setRegionCache(data: any) {
+    await this.cacheManager.set('REGIONS', data, 0);
   }
 
-  async onModuleInit() {
-    await this.syncCache();
+  async getRegionCache() {
+    return await this.cacheManager.get('REGIONS');
   }
 
-  async syncCache() {
-    this.logger.log('Post office sync start');
-    try {
-      const offices = await this.postService.fetchPostOffices();
-      await this.cacheManager.set('ALL_OFFICES', offices, 1000 * 60 * 60 * 24);
-      this.logger.log(`Synced ${offices.length} post offices`);
-    } catch (error) {
-      this.logger.error('Failed to sync', error);
-    }
+  async setSettlementCache(data: any, regionName: string) {
+    await this.cacheManager.set(`${regionName}_SETTLEMENTS`, data, 0);
   }
 
-  async getCache() {
-    return await this.cacheManager.get<IPostOffice[]>('ALL_OFFICES');
+  async getSettlementCache(regionName: string) {
+    return await this.cacheManager.get(`${regionName}_SETTLEMENTS`);
   }
 
-  async getOfficeByRegion(regionKey: string) {
-    const region = PostRegions[regionKey as keyof typeof PostRegions] as string;
+  async setPostOfficeCache(data: any, settlementName: string) {
+    await this.cacheManager.set(`${settlementName}_OFFICES`, data);
+  }
 
-    const cached = await this.getCache();
-
-    if (!cached || !region) return [];
-    const res = cached.filter((office) => office.region === region);
-    return res;
+  async getPostOfficeCache(settlementName: string) {
+    return await this.cacheManager.get(`${settlementName}_OFFICES`);
   }
 }

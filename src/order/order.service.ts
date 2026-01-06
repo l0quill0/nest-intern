@@ -47,6 +47,15 @@ export class OrderService {
           take: pageSize,
           omit: { userId: true },
           include: {
+            postOffice: {
+              include: {
+                settlement: {
+                  include: {
+                    region: true,
+                  },
+                },
+              },
+            },
             items: {
               include: {
                 item: {
@@ -69,6 +78,11 @@ export class OrderService {
     const formattedOrders = orders.map((order) => {
       return {
         ...order,
+        postOffice: {
+          name: order.postOffice?.name,
+          settlement: order.postOffice?.settlement.name,
+          region: order.postOffice?.settlement.region.name,
+        },
         items: order.items.map((item) => ({
           ...item.item,
           quantity: item.quantity,
@@ -115,7 +129,7 @@ export class OrderService {
       return null;
     }
 
-    const order: IOrder = {
+    const order: Omit<IOrder, 'postOffice'> = {
       ...currentOrder,
       items: currentOrder.items.map((item) => ({
         ...item.item,
@@ -132,51 +146,12 @@ export class OrderService {
       include: { items: true },
     });
 
-    const order: IOrder = {
+    const order: Omit<IOrder, 'postOffice'> = {
       ...currentOrder,
       items: [],
     };
 
     return order;
-  }
-
-  async getOrderById(user: IUserJWT, orderId: number) {
-    const order = await this.prismaService.order.findUnique({
-      where: { id: orderId },
-      include: {
-        items: {
-          include: {
-            item: {
-              include: {
-                category: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
-    }
-
-    if (order.userId !== user.sub && user.role !== Role.ADMIN) {
-      throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
-    }
-
-    const returnOrder: IOrder = {
-      ...order,
-      items: order.items.map((item) => ({
-        ...item.item,
-        quantity: item.quantity,
-      })),
-    };
-
-    return returnOrder;
   }
 
   async addOrderItem(
@@ -315,7 +290,7 @@ export class OrderService {
     ]);
   }
 
-  async sendOrder(userId: number, postOffice: string) {
+  async sendOrder(userId: number, officeId: number) {
     const currentOrder = await this.prismaService.order.findFirst({
       where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
       include: {
@@ -331,7 +306,7 @@ export class OrderService {
       data: {
         status: OrderStatus.PENDING,
         createdAt: new Date(Date.now()),
-        postOffice,
+        officeId,
       },
     });
   }

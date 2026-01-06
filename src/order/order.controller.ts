@@ -50,15 +50,6 @@ export class OrderController {
   }
 
   @UseGuards(JwtGuard)
-  @Get(':id')
-  async getOrderById(
-    @Me() user: roleGuard.IUserJWT,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return await this.orderService.getOrderById(user, id);
-  }
-
-  @UseGuards(JwtGuard)
   @Post('add-item')
   async addOrderItem(
     @Me() user: roleGuard.IUserJWT,
@@ -86,7 +77,7 @@ export class OrderController {
   @Patch('send')
   async sendOrder(
     @Me() user: roleGuard.IUserJWT,
-    @Body() data: { postOffice: string },
+    @Body() data: { postOffice: number },
   ) {
     return await this.orderService.sendOrder(user.sub, data.postOffice);
   }

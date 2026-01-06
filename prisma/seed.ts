@@ -1,5 +1,8 @@
+import { PostOffice } from './../generated/prisma/index.d';
 import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from '../generated/prisma';
+import axios from 'axios';
+import { fetchPage } from '../src/post/fetchPage';
 
 const prisma = new PrismaClient();
 
@@ -29,6 +32,84 @@ async function main() {
       favourites: { create: {} },
     },
   });
+
+  const response = await axios.get<{ jwt: string }>(
+    `${process.env.NP_BASE_URL}/clients/authorization/`,
+    { params: { apiKey: process.env.NP_API_KEY } },
+  );
+
+  const novaPostJWT = response.data.jwt;
+
+  if (!novaPostJWT) {
+    throw new Error('Nova post jwt token missing');
+  }
+
+  console.log(novaPostJWT);
+
+  let hasNextPage = true;
+  let currentPage = 1;
+  const existingRegions = new Set();
+  const existingSettlements = new Set();
+
+  while (hasNextPage) {
+    const page = await fetchPage(currentPage, novaPostJWT);
+    const postOffices: PostOffice[] = [];
+    const regions = new Map();
+    const settlements = new Map();
+
+    page.items.forEach((item) => {
+      const { settlement } = item;
+      const { region } = settlement;
+      const regionId = region.parent?.id || region.id;
+
+      if (!existingRegions.has(regionId)) {
+        const regionName = region.parent?.name || region.name;
+        regions.set(regionId, {
+          id: regionId,
+          name: regionName,
+        });
+        existingRegions.add(regionId);
+      }
+
+      if (!existingSettlements.has(settlement.id)) {
+        settlements.set(settlement.id, {
+          id: settlement.id,
+          name: settlement.name,
+          regionId: region.parent?.id || region.id,
+        });
+        existingSettlements.add(settlement.id);
+      }
+      postOffices.push({
+        id: item.id,
+        name: item.name,
+        status: item.status,
+        settlementId: item.settlement.id,
+      });
+    });
+
+    if (regions.size) {
+      await prisma.region.createMany({
+        data: Array.from(regions.values()),
+        skipDuplicates: true,
+      });
+    }
+
+    if (settlements.size) {
+      await prisma.settlement.createMany({
+        data: Array.from(settlements.values()),
+        skipDuplicates: true,
+      });
+    }
+
+    await prisma.postOffice.createMany({
+      data: postOffices,
+      skipDuplicates: true,
+    });
+
+    hasNextPage = page.current_page !== page.last_page;
+    currentPage++;
+    console.log(currentPage, hasNextPage, page.current_page, page.last_page);
+  }
 }
 
 main()

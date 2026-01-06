@@ -1,76 +1,108 @@
-import { HttpService } from '@nestjs/axios';
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { firstValueFrom } from 'rxjs';
-import { IOfficesPaginatedApi } from './types/offices.paginated.api.type';
-import pLimit from 'p-limit';
-import { IPostOfficeApi } from './types/post.office.api.type';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import axios from 'axios';
+import { PrismaService } from 'src/prisma.service';
+import { fetchPage } from './fetchPage';
+import { PostCacheService } from 'src/post-cache/post-cache.service';
 
 @Injectable()
 export class PostService {
-  constructor(private readonly httpService: HttpService) {}
+  logger = new Logger(PostService.name);
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly postCacheService: PostCacheService,
+  ) {}
 
-  async fetchPostOffices() {
-    const response = await firstValueFrom(
-      this.httpService.get<{ jwt: string }>(
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  private async syncPostOffices() {
+    try {
+      this.logger.log('Sync started');
+      const response = await axios.get<{ jwt: string }>(
         `${process.env.NP_BASE_URL}/clients/authorization/`,
-        {
-          params: {
-            apiKey: process.env.NP_API_KEY,
-          },
-        },
-      ),
-    );
-
-    const jwtToken = response.data.jwt;
-
-    if (!jwtToken)
-      throw new HttpException('BAD_REQUEST', HttpStatus.BAD_REQUEST);
-
-    const limit = pLimit(8);
-
-    const fetchPage = async (page: number) => {
-      const response = await firstValueFrom(
-        this.httpService.get<IOfficesPaginatedApi>(
-          `${process.env.NP_BASE_URL}/divisions`,
-          {
-            headers: {
-              Authorization: jwtToken,
-            },
-            params: {
-              limit: 100,
-              page,
-              countryCodes: ['UA'],
-              divisionCategories: ['PostBranch'],
-              statuses: ['Working'],
-            },
-          },
-        ),
+        { params: { apiKey: process.env.NP_API_KEY } },
       );
-      return response.data;
-    };
 
-    const firstPage = await fetchPage(1);
+      const novaPostJWT = response.data.jwt;
 
-    const requests: Promise<IPostOfficeApi[]>[] = [];
+      if (!novaPostJWT) {
+        throw new Error('Nova post jwt token missing');
+      }
 
-    for (let page = 2; page <= firstPage.last_page; page++) {
-      requests.push(limit(() => fetchPage(page).then((data) => data.items)));
+      let hasNextPage = true;
+      let currentPage = 1;
+
+      while (hasNextPage) {
+        const page = await fetchPage(currentPage, novaPostJWT);
+
+        const promises = page.items.map((item) => {
+          return this.prismaService.postOffice.update({
+            where: { id: item.id },
+            data: { status: item.status },
+          });
+        });
+
+        await Promise.all(promises);
+
+        hasNextPage = page.current_page !== page.last_page;
+        currentPage++;
+      }
+      this.logger.log('Sync successfull');
+    } catch (error) {
+      this.logger.error('Failed to sync', error);
     }
+  }
 
-    const otherPages = await Promise.all(requests);
+  async getRegions() {
+    const cached = await this.postCacheService.getRegionCache();
+    if (cached) return cached;
 
-    const rawPostOffice = [...firstPage.items, ...otherPages.flat()];
+    const regions = await this.prismaService.region.findMany();
+    await this.postCacheService.setRegionCache(regions);
 
-    const formatedPostOffice = rawPostOffice.map((office) => {
-      return {
-        id: office.id,
-        name: office.name || undefined,
-        region:
-          office.settlement.region.parent?.name ??
-          office.settlement.region.name,
-      };
+    return regions;
+  }
+
+  async getSettlements(regionId: number) {
+    const region = await this.prismaService.region.findUnique({
+      where: { id: regionId },
     });
 
-    return formatedPostOffice;
+    if (!region) {
+      throw new HttpException('REGION NOT FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const cached = await this.postCacheService.getSettlementCache(region.name);
+    if (cached) return cached;
+
+    const settlements = await this.prismaService.settlement.findMany({
+      where: { regionId },
+    });
+    await this.postCacheService.setSettlementCache(settlements, region.name);
+
+    return settlements;
+  }
+
+  async getPostOffices(settlementId: number) {
+    const settlement = await this.prismaService.settlement.findUnique({
+      where: { id: settlementId },
+    });
+    if (!settlement) {
+      throw new HttpException('SETTLEMENT NOT FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const cached = await this.postCacheService.getPostOfficeCache(
+      settlement.name,
+    );
+    if (cached) return cached;
+
+    const postOffices = await this.prismaService.postOffice.findMany({
+      where: { AND: [{ settlementId: settlementId }, { status: 'Working' }] },
+    });
+    await this.postCacheService.setPostOfficeCache(
+      postOffices,
+      settlement.name,
+    );
+
+    return postOffices;
   }
 }

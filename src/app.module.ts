@@ -14,7 +14,6 @@ import { RedisModule } from './redis/redis.module';
 import { ItemCacheService } from './item-cache/item-cache.service';
 import { CategoryCacheService } from './category-cache/category-cache.service';
 import { PostModule } from './post/post.module';
-import { PostCacheModule } from './post-cache/post-cache.module';
 import Keyv from 'keyv';
 import KeyvRedis from '@keyv/redis';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -43,7 +42,6 @@ import { ScheduleModule } from '@nestjs/schedule';
     BucketModule,
     RedisModule,
     PostModule,
-    PostCacheModule,
   ],
   controllers: [AppController],
   providers: [AppService, RedisService, ItemCacheService, CategoryCacheService],

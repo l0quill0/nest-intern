@@ -5,6 +5,10 @@ export interface IOrder {
   status: string;
   total: number;
   createdAt: Date;
-  postOffice: string | null;
+  postOffice?: {
+    name?: string;
+    settlement?: string;
+    region?: string;
+  };
   items: (Item & { quantity: number })[];
 }

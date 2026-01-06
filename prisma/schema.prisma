@@ -61,7 +61,8 @@ model Order{
   user      User     @relation(fields: [userId], references: [id])
   userId    Int
   status    String   @default("INCOMPLETE")
-  postOffice String? 
+  postOffice PostOffice?  @relation(fields: [officeId], references: [id])
+  officeId  Int?
   items     OrderItem[]
   total     Float    @default(0)
   createdAt DateTime @default(now())
@@ -74,6 +75,29 @@ model OrderItem {
   item    Item  @relation(fields: [itemId], references: [id])
   itemId  Int
   quantity Int  @default(1)
+}
+
+model Settlement {
+  id Int @id
+  name String
+  region Region @relation(fields: [regionId], references: [id])
+  regionId Int
+  offices PostOffice[]
+}
+
+model Region {
+  id Int @id 
+  name String
+  settlements Settlement[]
+}
+
+model PostOffice {
+  id Int @id
+  name String
+  status String
+  settlement Settlement @relation(fields: [settlementId], references: [id])
+  settlementId Int
+  orders Order[]
 }
 
 
