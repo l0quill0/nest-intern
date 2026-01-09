@@ -5,16 +5,20 @@ import bcrypt from 'node_modules/bcryptjs';
 import { USER_NOT_FOUND, WRONG_OLD_PASSWORD } from './user.constants';
 
 import { UpdatePasswordDto } from './dto/updatePassword.dto';
-import { CreateUserDto } from './dto/create.user.dto';
 import { BaseUserDto } from './dto/base.user.dto';
 import { OrderStatus } from 'src/order/order.enum';
+import { ICreateUser } from './dto/create.user.type';
+import { AuthMethod } from 'src/auth/authMethod.enum';
 
 @Injectable()
 export class UserService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async getUserByEmail(email: string) {
-    const user = await this.prismaService.user.findUnique({ where: { email } });
+    const user = await this.prismaService.user.findUnique({
+      where: { email },
+      include: { authMethod: { select: { name: true } } },
+    });
 
     return user;
   }
@@ -63,9 +67,13 @@ export class UserService {
     return { favCount: favCount?._count.items, cartCount };
   }
 
-  async createUser(data: CreateUserDto) {
+  async createUser(data: ICreateUser) {
     return await this.prismaService.user.create({
-      data: { ...data, favourites: { create: {} } },
+      data: {
+        ...data,
+        favourites: { create: {} },
+        authMethod: { connect: { name: data.authMethod } },
+      },
     });
   }
 
@@ -108,6 +116,25 @@ export class UserService {
     return await this.prismaService.user.update({
       where: { id },
       data: { password: hashedPassword },
+    });
+  }
+
+  async addPassword(id: number, password: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id },
+    });
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    if (user.password)
+      throw new HttpException('USER_HAS_PASSWORD', HttpStatus.BAD_REQUEST);
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(password, salt);
+    return await this.prismaService.user.update({
+      where: { id },
+      data: {
+        password: hashedPassword,
+        authMethod: { connect: { name: AuthMethod.BASIC } },
+      },
     });
   }
 }

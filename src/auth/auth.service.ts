@@ -4,13 +4,15 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthDto } from './dto/auth.dto';
 import {
   INVALID_PASSWORD_ERROR,
-  NOT_REGISTERED,
+  NO_PASSWORD,
   UNKNOWN_USER_ERROR,
   USER_ALREADY_EXISTS_ERROR,
 } from './auth.constants';
 import bcrypt from 'node_modules/bcryptjs';
 import { CreateUserDto } from 'src/user/dto/create.user.dto';
 import { User } from 'generated/prisma';
+import { GoogleAuthDto } from './dto/google.auth.dto';
+import { AuthMethod } from './authMethod.enum';
 
 @Injectable()
 export class AuthService {
@@ -33,6 +35,7 @@ export class AuthService {
 
     return await this.userService.createUser({
       ...data,
+      authMethod: AuthMethod.BASIC,
       password: hashedPassword,
     });
   }
@@ -43,7 +46,7 @@ export class AuthService {
       throw new HttpException(UNKNOWN_USER_ERROR, HttpStatus.NOT_FOUND);
     }
     if (!user.password) {
-      throw new HttpException(NOT_REGISTERED, HttpStatus.BAD_REQUEST);
+      throw new HttpException(NO_PASSWORD, HttpStatus.BAD_REQUEST);
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -63,5 +66,17 @@ export class AuthService {
         role: payload?.role,
       }),
     };
+  }
+
+  async authGoogle(data: GoogleAuthDto) {
+    const user = await this.userService.getUserByEmail(data.email);
+    if (user) return await this.login(user.email);
+
+    await this.userService.createUser({
+      ...data,
+      authMethod: AuthMethod.GOOGLE,
+    });
+
+    return await this.login(data.email);
   }
 }

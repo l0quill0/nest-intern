@@ -64,4 +64,13 @@ export class UserController {
   ) {
     return await this.userService.updatePassword(user.sub, data);
   }
+
+  @UseGuards(JwtGuard)
+  @Patch('add-password')
+  async addPassword(
+    @Me() user: roleGuard.IUserJWT,
+    @Body() { password }: { password: string },
+  ) {
+    return await this.userService.addPassword(user.sub, password);
+  }
 }

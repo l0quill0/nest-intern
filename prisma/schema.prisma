@@ -22,6 +22,7 @@ model User {
   password  String?   
   name      String?
   role      String   @default("USER")
+  authMethod AuthFlow[]
   orders    Order[]
   favourites UserFavourites?
   createdAt DateTime @default(now())
@@ -98,6 +99,12 @@ model PostOffice {
   settlement Settlement @relation(fields: [settlementId], references: [id])
   settlementId Int
   orders Order[]
+}
+
+model AuthFlow {
+  id Int @id @default(autoincrement())
+  name String @unique
+  user User[]
 }
 
 
