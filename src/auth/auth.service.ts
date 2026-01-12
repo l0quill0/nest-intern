@@ -70,6 +70,10 @@ export class AuthService {
 
   async authGoogle(data: GoogleAuthDto) {
     const user = await this.userService.getUserByEmail(data.email);
+
+    if (user && !user?.authMethod.find((m) => m.name === 'GOOGLE'))
+      await this.userService.addAuthFlow('GOOGLE', user?.id);
+
     if (user) return await this.login(user.email);
 
     await this.userService.createUser({

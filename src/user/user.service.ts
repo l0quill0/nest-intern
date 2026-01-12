@@ -137,4 +137,11 @@ export class UserService {
       },
     });
   }
+
+  async addAuthFlow(name: string, userId: number) {
+    return await this.prismaService.user.update({
+      where: { id: userId },
+      data: { authMethod: { connect: { name: name } } },
+    });
+  }
 }
