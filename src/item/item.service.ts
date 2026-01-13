@@ -192,7 +192,10 @@ export class ItemService {
     }
 
     const suggestions = await this.prismaService.item.findMany({
-      where: { NOT: [{ id: item.id }], AND: [{ categoryId: item.categoryId }] },
+      where: {
+        NOT: [{ id: item.id }, { isRemoved: true }],
+        AND: [{ categoryId: item.categoryId }],
+      },
       include: { category: true },
       omit: { categoryId: true },
       take: itemCount,
