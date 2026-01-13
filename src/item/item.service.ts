@@ -10,6 +10,9 @@ import { NON_EXISTANT_CATEGORY } from 'src/category/category.constants';
 import 'multer';
 import { CategoryService } from 'src/category/category.service';
 import { ItemCacheService } from 'src/item-cache/item-cache.service';
+import { USER_NOT_FOUND } from 'src/user/user.constants';
+import { CommentPaginationDto } from './dto/comment.pagination.dto';
+import { IUserJWT } from 'src/auth/guards/role.guard';
 
 @Injectable()
 export class ItemService {
@@ -121,7 +124,9 @@ export class ItemService {
   async getItemById(id: number, userId?: number) {
     const item = await this.prismaService.item.findUnique({
       where: { id },
-      include: { category: { select: { name: true, slug: true } } },
+      include: {
+        category: { select: { name: true, slug: true } },
+      },
       omit: { categoryId: true },
     });
 
@@ -287,5 +292,86 @@ export class ItemService {
       where: { id },
       data: { isRemoved: true },
     });
+  }
+
+  async addComment(
+    text: string,
+    score: number,
+    itemId: number,
+    userId: number,
+  ) {
+    const item = await this.prismaService.item.findUnique({
+      where: { id: itemId },
+    });
+    if (!item) throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+    return await this.prismaService.comment.create({
+      data: { text, score, itemId, userId },
+    });
+  }
+
+  async getComments(itemId: number, { page, pageSize }: CommentPaginationDto) {
+    const item = await this.prismaService.item.findUnique({
+      where: { id: itemId },
+    });
+    if (!item) throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+    const skip = pageSize * (page - 1);
+
+    const [totalItems, items] = await this.prismaService.$transaction(
+      async (tx) => {
+        const totalItems = await tx.comment.count({
+          where: { itemId },
+        });
+        const items = await tx.comment.findMany({
+          where: { itemId },
+          include: {
+            user: {
+              select: { name: true },
+            },
+          },
+          omit: {
+            itemId: true,
+          },
+          take: pageSize,
+          skip,
+          orderBy: { id: 'desc' },
+        });
+        return [totalItems, items];
+      },
+    );
+
+    const totalPages = Math.ceil(totalItems / pageSize);
+
+    return {
+      items: items.map((c) => ({ ...c, user: c.user.name })),
+      meta: {
+        totalItems,
+        itemCount: items.length,
+        itemsPerPage: pageSize,
+        totalPages,
+        currentPage: page,
+      },
+    };
+  }
+
+  async deleteComment(id: number, userReq: IUserJWT) {
+    const comment = await this.prismaService.comment.findUnique({
+      where: { id },
+    });
+    if (!comment)
+      throw new HttpException('COMMENT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userReq.sub },
+    });
+    if (!user) throw new HttpException('USER_NOT_FOUND', HttpStatus.NOT_FOUND);
+    if (comment.userId !== userReq.sub && user.role !== 'ADMIN')
+      throw new HttpException('FORBIDDEN', HttpStatus.FORBIDDEN);
+
+    return await this.prismaService.comment.delete({ where: { id } });
   }
 }

@@ -28,6 +28,8 @@ import { ItemPaginationOptionsDto } from './dto/item.pagination.options.dto';
 import { Me } from 'src/user/decorators/me.decorator';
 import { SuggestionQueryDto } from './dto/suggestions.query.dto';
 import { OptionalJwtGuard } from 'src/auth/guards/optional.jwt.guard';
+import { CommnetDto } from './dto/comment.dto';
+import { CommentPaginationDto } from './dto/comment.pagination.dto';
 
 const maxImageSize = 5 * 1024 * 1024;
 
@@ -38,6 +40,14 @@ export class ItemController {
   @Get('suggestions')
   async getSuggestion(@Query() dto: SuggestionQueryDto) {
     return await this.itemService.getSuggestions(dto.itemId, dto.itemCount);
+  }
+
+  @Get('comments/:id')
+  async getComments(
+    @Param('id') id: number,
+    @Query() query: CommentPaginationDto,
+  ) {
+    return await this.itemService.getComments(id, query);
   }
 
   @UseGuards(OptionalJwtGuard)
@@ -73,6 +83,21 @@ export class ItemController {
     return await this.itemService.createItem(file, data);
   }
 
+  @UseGuards(JwtGuard)
+  @Post('comment/:id')
+  async addComment(
+    @Me() user: roleGuard.IUserJWT,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CommnetDto,
+  ) {
+    return await this.itemService.addComment(
+      body.text,
+      body.score,
+      id,
+      user.sub,
+    );
+  }
+
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, roleGuard.RolesGuard)
   @Patch(':id')
@@ -106,5 +131,14 @@ export class ItemController {
   @Delete(':id')
   async deleteItem(@Param('id', ParseIntPipe) id: number) {
     return await this.itemService.deleteItem(id);
+  }
+
+  @UseGuards(JwtGuard)
+  @Delete('comment/:id')
+  async deleteComment(
+    @Param('id', ParseIntPipe) id: number,
+    @Me() user: roleGuard.IUserJWT,
+  ) {
+    return await this.itemService.deleteComment(id, user);
   }
 }
