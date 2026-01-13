@@ -134,6 +134,16 @@ export class ItemService {
       throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
+    const score = await this.prismaService.comment.aggregate({
+      where: { itemId: id },
+      _count: {
+        _all: true,
+      },
+      _avg: {
+        score: true,
+      },
+    });
+
     const isFavourite = await this.prismaService.item.findFirst({
       where: {
         id,
@@ -148,6 +158,7 @@ export class ItemService {
 
     return {
       ...item,
+      score: { count: score._count._all, avg: score._avg.score },
       isInFavourite: !!isFavourite,
     };
   }
