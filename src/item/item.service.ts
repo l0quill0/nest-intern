@@ -95,6 +95,7 @@ export class ItemService {
             category: {
               select: {
                 name: true,
+                slug: true,
               },
             },
           },
