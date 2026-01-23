@@ -1,350 +1,81 @@
-import { IUserJWT } from './../auth/guards/role.guard';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
 import { OrderStatus } from './order.enum';
-import {
-  NOT_OWN_ORDER,
-  ORDER_EMPTY,
-  ORDER_ITEM_NOT_FOUND,
-  ORDER_NOT_FOUND,
-  STATUS_INCORRECT,
-} from './order.constants';
-import { ITEM_NOT_FOUND } from 'src/item/item.constants';
-import { OrderAddItemDto } from './dto/order.add.item.dto';
-import { OrderRemoveItemDto } from './dto/order.remove.item.dto';
-import { Role } from 'src/auth/role.enum';
-import { OrderPaginationOptionsDto } from './dto/order.pagination.options.dto';
-import { Prisma } from 'generated/prisma';
-import { IOrder } from './dto/order.return.dto';
+import { OrderUpdateDto } from './dto/order.update.dto';
+import { User } from 'src/user/user.record';
+import { USER_NOT_FOUND } from 'src/user/user.service';
+import { Order } from './order.record';
+import { Post } from 'src/post/post.record';
+import { OrderQueryDto } from './dto/order.query.dto';
+import { POST_OFFICT_NOT_FOUND } from 'src/post/post.service';
+
+export const ORDER_NOT_FOUND = 'ORDER_NOT_FOUND';
+export const ORDER_EMPTY = 'ORDER_EMPTY';
+export const ORDER_ITEM_NOT_FOUND = 'ORDER_ITEM_NOT_FOUND';
+export const NOT_OWN_ORDER = 'NOT_OWN_ORDER';
+export const STATUS_INCORRECT = 'STATUS_INCORRECT';
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly prismaService: PrismaService) {}
+  async getByQuery(userId: number, options: OrderQueryDto) {
+    const user = await User.getById(userId);
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
-  async getPaginatedOrders(user: IUserJWT, options: OrderPaginationOptionsDto) {
-    const { page, pageSize, sortBy, sortOrder } = options;
-
-    const skip = (page - 1) * pageSize;
-    const where: Prisma.OrderWhereInput = {
-      userId: user.role === Role.ADMIN ? undefined : user.sub,
-    };
-
-    where.AND = { NOT: { status: OrderStatus.INCOMPLETE } };
-
-    const orderBy: Prisma.ItemOrderByWithRelationInput = {
-      [sortBy!]: sortOrder,
-    };
-
-    const [totalItems, orders] = await this.prismaService.$transaction(
-      async (tx) => {
-        const totalItems = await tx.order.count({
-          where,
-        });
-        const orders = await tx.order.findMany({
-          where,
-          orderBy,
-          skip,
-          take: pageSize,
-          omit: { userId: true },
-          include: {
-            postOffice: {
-              include: {
-                settlement: {
-                  include: {
-                    region: true,
-                  },
-                },
-              },
-            },
-            items: {
-              include: {
-                item: {
-                  include: {
-                    category: {
-                      select: {
-                        name: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        });
-        return [totalItems, orders];
-      },
-    );
-
-    const formattedOrders = orders.map((order) => {
-      return {
-        ...order,
-        postOffice: {
-          name: order.postOffice?.name,
-          settlement: order.postOffice?.settlement.name,
-          region: order.postOffice?.settlement.region.name,
-        },
-        items: order.items.map((item) => ({
-          ...item.item,
-          quantity: item.quantity,
-        })),
-      };
-    });
-
-    const totalPages = Math.ceil(totalItems / pageSize);
-    const paginatedOrders = {
-      data: formattedOrders,
-      meta: {
-        totalItems,
-        itemCount: orders.length,
-        itemsPerPage: pageSize,
-        totalPages,
-        currentPage: page,
-      },
-    };
-
-    return paginatedOrders;
+    return await Order.getByQuery(user, options);
   }
 
-  async getCurrentOrder(userId: number) {
-    const currentOrder = await this.prismaService.order.findFirst({
-      where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
-      include: {
-        items: {
-          include: {
-            item: {
-              include: {
-                category: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+  async getActive(userId: number) {
+    const user = await User.getById(userId);
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
-    if (!currentOrder) {
-      return null;
-    }
-
-    const order: Omit<IOrder, 'postOffice'> = {
-      ...currentOrder,
-      items: currentOrder.items.map((item) => ({
-        ...item.item,
-        quantity: item.quantity,
-      })),
-    };
-
-    return order;
+    return await Order.getActive(user);
   }
 
-  async createCurrentOrder(userId: number) {
-    const currentOrder = await this.prismaService.order.create({
-      data: { userId },
-      include: { items: true },
-    });
+  async getById(userId: number, orderId: number) {
+    const user = await User.getById(userId);
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
-    const order: Omit<IOrder, 'postOffice'> = {
-      ...currentOrder,
-      items: [],
-    };
+    const order = await Order.getById(orderId);
+    if (!order) throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
-    return order;
-  }
-
-  async addOrderItem(
-    userId: number,
-    { itemId, quantity = 1 }: OrderAddItemDto,
-  ) {
-    const item = await this.prismaService.item.findUnique({
-      where: { id: itemId },
-    });
-
-    if (!item) {
-      throw new HttpException(ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
-    }
-
-    let currentOrder = await this.prismaService.order.findFirst({
-      where: { AND: { userId }, status: OrderStatus.INCOMPLETE },
-    });
-
-    if (!currentOrder) {
-      currentOrder = await this.prismaService.order.create({
-        data: { userId },
-        include: { items: true },
-      });
-      if (!currentOrder) {
-        throw new HttpException('BAD_REQUEST', HttpStatus.BAD_REQUEST);
-      }
-    }
-
-    const itemInOrder = await this.prismaService.orderItem.findFirst({
-      where: { AND: [{ itemId }, { orderId: currentOrder.id }] },
-    });
-
-    const orderTotal = currentOrder.total + item.price * quantity;
-
-    if (itemInOrder) {
-      return await this.prismaService.$transaction([
-        this.prismaService.orderItem.update({
-          where: { id: itemInOrder.id },
-          data: { quantity: itemInOrder.quantity + quantity },
-        }),
-        this.prismaService.order.update({
-          where: { id: currentOrder.id },
-          data: { total: orderTotal },
-        }),
-      ]);
-    }
-
-    return await this.prismaService.$transaction([
-      this.prismaService.orderItem.create({
-        data: { itemId, quantity, orderId: currentOrder.id },
-      }),
-      this.prismaService.order.update({
-        where: { id: currentOrder.id },
-        data: { total: orderTotal },
-      }),
-    ]);
-  }
-
-  async removeOrderItem(
-    userId: number,
-    { itemId, quantity }: OrderRemoveItemDto,
-  ) {
-    const currentOrder = await this.prismaService.order.findFirst({
-      where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
-      include: {
-        items: true,
-      },
-    });
-    if (!currentOrder || currentOrder.items.length < 1) {
-      throw new HttpException(ORDER_EMPTY, HttpStatus.BAD_REQUEST);
-    }
-
-    const orderItem = await this.prismaService.orderItem.findFirst({
-      where: { AND: [{ orderId: currentOrder.id }, { itemId }] },
-      include: {
-        order: true,
-        item: true,
-      },
-    });
-
-    if (!orderItem) {
-      throw new HttpException(ORDER_ITEM_NOT_FOUND, HttpStatus.NOT_FOUND);
-    }
-
-    if (orderItem.order.userId !== userId) {
+    if (order.user.id !== user.id && !user.isAdmin())
       throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
-    }
 
-    if (quantity && quantity < orderItem.quantity) {
-      return await this.prismaService.$transaction([
-        this.prismaService.orderItem.update({
-          where: { id: orderItem.id },
-          data: { quantity: orderItem.quantity - quantity },
-        }),
-        this.prismaService.order.update({
-          where: { id: currentOrder.id },
-          data: {
-            total: currentOrder.total - quantity * orderItem.item.price,
-          },
-        }),
-      ]);
-    }
-
-    return await this.prismaService.$transaction([
-      this.prismaService.orderItem.delete({
-        where: { id: orderItem.id },
-      }),
-      this.prismaService.order.update({
-        where: { id: currentOrder.id },
-        data: {
-          total: currentOrder.total - orderItem.quantity * orderItem.item.price,
-        },
-      }),
-    ]);
+    return order;
   }
 
-  async clearOrder(userId: number) {
-    const currentOrder = await this.prismaService.order.findFirst({
-      where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
-      include: {
-        items: true,
-      },
-    });
-    if (!currentOrder || currentOrder.items.length < 1) {
-      throw new HttpException(ORDER_EMPTY, HttpStatus.BAD_REQUEST);
-    }
+  async create(userId: number) {
+    const user = await User.getById(userId);
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
-    return await this.prismaService.$transaction([
-      this.prismaService.orderItem.deleteMany({
-        where: { orderId: currentOrder.id },
-      }),
-      this.prismaService.order.update({
-        where: { id: currentOrder.id },
-        data: { total: 0 },
-      }),
-    ]);
+    return await Order.create(user);
   }
 
-  async sendOrder(userId: number, officeId: number) {
-    const currentOrder = await this.prismaService.order.findFirst({
-      where: { AND: [{ userId }, { status: OrderStatus.INCOMPLETE }] },
-      include: {
-        items: true,
-      },
-    });
-    if (!currentOrder || currentOrder.items.length < 1) {
-      throw new HttpException(ORDER_EMPTY, HttpStatus.BAD_REQUEST);
+  async update(userId: number, orderId: number, data: OrderUpdateDto) {
+    const user = await User.getById(userId);
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+    const order = await Order.getById(orderId);
+    if (!order) throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+    if (user.id !== order.user.id && !user.isAdmin())
+      throw new HttpException(NOT_OWN_ORDER, HttpStatus.UNAUTHORIZED);
+
+    if (data.items) {
+      await order.items.setFromIds(data.items);
     }
 
-    return await this.prismaService.order.update({
-      where: { id: currentOrder.id },
-      data: {
-        status: OrderStatus.PENDING,
-        createdAt: new Date(Date.now()),
-        officeId,
-      },
-    });
-  }
-
-  async cancelOrder(user: IUserJWT, orderId: number) {
-    const order = await this.prismaService.order.findUnique({
-      where: { id: orderId },
-    });
-
-    if (!order) {
-      throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    if (data.status) {
+      order.status = data.status;
     }
 
-    if (order.userId !== user.sub && user.role !== Role.ADMIN) {
-      throw new HttpException(NOT_OWN_ORDER, HttpStatus.FORBIDDEN);
+    if (data.status === OrderStatus.PENDING) {
+      const post = await Post.getById(data.postId!);
+      if (!post)
+        throw new HttpException(POST_OFFICT_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+      order.postOffice = post;
     }
 
-    if (order.status !== (OrderStatus.PENDING as string)) {
-      throw new HttpException(STATUS_INCORRECT, HttpStatus.BAD_REQUEST);
-    }
-
-    return await this.prismaService.order.update({
-      where: { id: order.id },
-      data: { status: OrderStatus.CANCELED },
-    });
-  }
-
-  async confirmOrder(orderId: number) {
-    const order = await this.prismaService.order.findUnique({
-      where: { id: orderId },
-    });
-    if (!order) {
-      throw new HttpException(ORDER_NOT_FOUND, HttpStatus.NOT_FOUND);
-    }
-
-    return await this.prismaService.order.update({
-      where: { id: order.id },
-      data: { status: OrderStatus.COMPLETE },
-    });
+    return await order.update();
   }
 }

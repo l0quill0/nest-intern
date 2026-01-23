@@ -1,85 +1,78 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { UserService } from 'src/user/user.service';
+import { USER_NOT_FOUND } from 'src/user/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuthDto } from './dto/auth.dto';
-import {
-  INVALID_PASSWORD_ERROR,
-  NO_PASSWORD,
-  UNKNOWN_USER_ERROR,
-  USER_ALREADY_EXISTS_ERROR,
-} from './auth.constants';
-import bcrypt from 'node_modules/bcryptjs';
 import { CreateUserDto } from 'src/user/dto/create.user.dto';
-import { User } from 'generated/prisma';
 import { GoogleAuthDto } from './dto/google.auth.dto';
-import { AuthMethod } from './authMethod.enum';
+import { AuthFlow } from './authFlow.enum';
+import { Password, User } from 'src/user/user.record';
+
+export const INVALID_PASSWORD = 'INVALID_PASSWORD';
+export const ALREADY_EXISTS = 'USER_ALREADY EXISTS';
+export const BASIC_FLOW_INCOMPLETE = 'BASIC_FLOW_INCOMPLETE';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private readonly userService: UserService,
-    private readonly jwtService: JwtService,
-  ) {}
+  constructor(private readonly jwtService: JwtService) {}
 
   async register(data: CreateUserDto): Promise<User | null> {
-    const user = await this.userService.getUserByEmail(data.email);
+    const user = await User.getByEmail(data.email);
     if (user) {
-      throw new HttpException(
-        USER_ALREADY_EXISTS_ERROR,
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException(ALREADY_EXISTS, HttpStatus.BAD_REQUEST);
     }
 
-    const salt = await bcrypt.genSalt();
-    const hashedPassword = await bcrypt.hash(data.password, salt);
+    const password = await Password.hashed(data.password);
 
-    return await this.userService.createUser({
+    return await User.create({
       ...data,
-      authMethod: AuthMethod.BASIC,
-      password: hashedPassword,
+      authFlow: AuthFlow.BASIC,
+      password,
     });
   }
 
   async validateUser({ email, password }: AuthDto): Promise<boolean> {
-    const user = await this.userService.getUserWithPass(email);
+    const user = await User.getByEmail(email);
     if (!user) {
-      throw new HttpException(UNKNOWN_USER_ERROR, HttpStatus.NOT_FOUND);
+      throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
     if (!user.password) {
-      throw new HttpException(NO_PASSWORD, HttpStatus.BAD_REQUEST);
+      throw new HttpException(BASIC_FLOW_INCOMPLETE, HttpStatus.BAD_REQUEST);
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await user.password.compare(password);
     if (!isPasswordValid) {
-      throw new HttpException(INVALID_PASSWORD_ERROR, HttpStatus.UNAUTHORIZED);
+      throw new HttpException(INVALID_PASSWORD, HttpStatus.UNAUTHORIZED);
     }
     return true;
   }
 
   async login(email: string) {
-    const payload = await this.userService.getUserByEmail(email);
+    const user = await User.getByEmail(email);
+    if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+
     return {
       access_token: this.jwtService.sign({
-        email: payload?.email,
-        sub: payload?.id,
-        name: payload?.name,
-        role: payload?.role,
+        email: user.email,
+        sub: user.id,
+        name: user.name,
+        role: user.role,
       }),
     };
   }
 
   async authGoogle(data: GoogleAuthDto) {
-    const user = await this.userService.getUserByEmail(data.email);
+    const user = await User.getByEmail(data.email);
 
-    if (user && !user?.authMethod.find((m) => m.name === 'GOOGLE'))
-      await this.userService.addAuthFlow('GOOGLE', user?.id);
+    if (user) {
+      if (!user.authFlow.find((f) => f === (AuthFlow.GOOGLE as string))) {
+        user.authFlow.push(AuthFlow.GOOGLE);
+        await user.update();
+      }
 
-    if (user) return await this.login(user.email);
+      return await this.login(user.email);
+    }
 
-    await this.userService.createUser({
-      ...data,
-      authMethod: AuthMethod.GOOGLE,
-    });
+    await User.create({ ...data, authFlow: AuthFlow.GOOGLE });
 
     return await this.login(data.email);
   }

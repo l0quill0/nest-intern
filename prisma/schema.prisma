@@ -20,10 +20,10 @@ model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   password  String?   
-  name      String?
+  name      String   @default("empty")
   role      String   @default("USER")
   comments Comment[]
-  authMethod AuthFlow[]
+  authFlow AuthFlow[]
   orders    Order[]
   favourites UserFavourites?
   createdAt DateTime @default(now())
@@ -78,6 +78,8 @@ model OrderItem {
   item    Item  @relation(fields: [itemId], references: [id])
   itemId  Int
   quantity Int  @default(1)
+
+  @@unique([itemId, orderId])
 }
 
 model Settlement {

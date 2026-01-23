@@ -1,12 +1,10 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   ParseIntPipe,
   Patch,
-  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -14,10 +12,8 @@ import { OrderService } from './order.service';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import * as roleGuard from 'src/auth/guards/role.guard';
 import { Me } from 'src/user/decorators/me.decorator';
-import { OrderAddItemDto } from './dto/order.add.item.dto';
-import { OrderRemoveItemDto } from './dto/order.remove.item.dto';
-import { Roles } from 'src/auth/decorators/role.decorator';
-import { Role } from 'src/auth/role.enum';
+import { OrderQueryDto } from './dto/order.query.dto';
+import { OrderUpdateDto } from './dto/order.update.dto';
 
 @Controller('order')
 export class OrderController {
@@ -25,75 +21,38 @@ export class OrderController {
 
   @UseGuards(JwtGuard)
   @Get('')
-  async getPaginatedOrders(
+  async getByQuery(
     @Me() user: roleGuard.IUserJWT,
-    @Query('page') page: number,
-    @Query('pageSize') pageSize: number,
-    @Query('sortBy') sortBy?: string,
-    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+    @Query() query: OrderQueryDto,
   ) {
-    return await this.orderService.getPaginatedOrders(user, {
-      page,
-      pageSize,
-      sortBy,
-      sortOrder,
-    });
+    return await this.orderService.getByQuery(user.sub, query);
   }
 
   @UseGuards(JwtGuard)
-  @Get('current')
-  async getCurrentOrder(@Me() user: roleGuard.IUserJWT) {
+  @Get('active')
+  async getActive(@Me() user: roleGuard.IUserJWT) {
     return (
-      (await this.orderService.getCurrentOrder(user.sub)) ||
-      (await this.orderService.createCurrentOrder(user.sub))
+      (await this.orderService.getActive(user.sub)) ||
+      (await this.orderService.create(user.sub))
     );
   }
 
   @UseGuards(JwtGuard)
-  @Post('add-item')
-  async addOrderItem(
+  @Get(':orderId')
+  async getById(
     @Me() user: roleGuard.IUserJWT,
-    @Body() data: OrderAddItemDto,
+    @Param('orderId', ParseIntPipe) orderId: number,
   ) {
-    return await this.orderService.addOrderItem(user.sub, data);
+    return await this.orderService.getById(user.sub, orderId);
   }
 
   @UseGuards(JwtGuard)
-  @Delete('clear')
-  async clearCurrentOrder(@Me() user: roleGuard.IUserJWT) {
-    return await this.orderService.clearOrder(user.sub);
-  }
-
-  @UseGuards(JwtGuard)
-  @Delete('remove-item')
-  async removeOrderItem(
+  @Patch(':orderId')
+  async update(
     @Me() user: roleGuard.IUserJWT,
-    @Body() data: OrderRemoveItemDto,
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Body() data: OrderUpdateDto,
   ) {
-    return await this.orderService.removeOrderItem(user.sub, data);
-  }
-
-  @UseGuards(JwtGuard)
-  @Patch('send')
-  async sendOrder(
-    @Me() user: roleGuard.IUserJWT,
-    @Body() data: { postOffice: number },
-  ) {
-    return await this.orderService.sendOrder(user.sub, data.postOffice);
-  }
-
-  @UseGuards(JwtGuard)
-  @Patch('cancel/:id')
-  async cancelOrder(
-    @Me() user: roleGuard.IUserJWT,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return await this.orderService.cancelOrder(user, id);
-  }
-
-  @Roles([Role.ADMIN])
-  @Patch('confirm/:id')
-  async confirmOrder(@Param('id', ParseIntPipe) id: number) {
-    return await this.orderService.confirmOrder(id);
+    return await this.orderService.update(user.sub, orderId, data);
   }
 }

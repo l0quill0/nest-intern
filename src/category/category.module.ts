@@ -1,19 +1,11 @@
 import { Module } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import { CategoryController } from './category.controller';
-import { PrismaService } from 'src/prisma.service';
-import { BucketService } from 'src/bucket/bucket.service';
-import { CategoryCacheService } from 'src/category-cache/category-cache.service';
-import { ItemCacheService } from 'src/item-cache/item-cache.service';
+import { ProductCacheService } from 'src/product/product-cache.service';
+import { CategoryImageStorage } from './category.image.storage';
 
 @Module({
-  providers: [
-    CategoryService,
-    PrismaService,
-    BucketService,
-    CategoryCacheService,
-    ItemCacheService,
-  ],
+  providers: [CategoryService, ProductCacheService, CategoryImageStorage],
   controllers: [CategoryController],
 })
 export class CategoryModule {}

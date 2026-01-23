@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -24,20 +23,20 @@ export class FavouriteController {
   }
 
   @UseGuards(JwtGuard)
-  @Post(':itemId')
+  @Post(':productId')
   async addFavourite(
     @Me() user: roleGuard.IUserJWT,
-    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('productId', ParseIntPipe) productId: number,
   ) {
-    return await this.favouriteService.addToFavourite(user.sub, itemId);
+    return await this.favouriteService.addFavourite(user.sub, productId);
   }
 
   @UseGuards(JwtGuard)
-  @Delete(':itemId')
+  @Delete(':productId')
   async removeFavourite(
     @Me() user: roleGuard.IUserJWT,
-    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('productId', ParseIntPipe) productId: number,
   ) {
-    return await this.favouriteService.removeFavourite(user.sub, itemId);
+    return await this.favouriteService.removeFavourite(user.sub, productId);
   }
 }

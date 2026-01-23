@@ -3,12 +3,13 @@ import { PassportStrategy } from '@nestjs/passport';
 
 import { IUserJWT } from './guards/role.guard';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { PrismaService } from 'src/prisma.service';
-import { INVALID_TOKEN } from './auth.constants';
+import { User } from 'src/user/user.record';
+
+const INVALID_TOKEN = 'INVALID_TOKEN';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly prismaService: PrismaService) {
+  constructor() {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: process.env.JWT_SECRET as string,
@@ -16,9 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(user: IUserJWT): Promise<IUserJWT | null> {
-    const userExist = await this.prismaService.user.findUnique({
-      where: { id: user.sub },
-    });
+    const userExist = await User.getById(user.sub);
 
     if (!userExist) {
       throw new HttpException(INVALID_TOKEN, HttpStatus.BAD_REQUEST);

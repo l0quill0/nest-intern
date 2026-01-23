@@ -3,26 +3,23 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
-import { ItemModule } from './item/item.module';
+import { ProductModule } from './product/product.module';
 import { OrderModule } from './order/order.module';
 import { CategoryModule } from './category/category.module';
 import { FavouriteModule } from './favourite/favourite.module';
 import { CacheModule } from '@nestjs/cache-manager';
-import { BucketModule } from './bucket/bucket.module';
-import { RedisService } from './redis/redis.service';
-import { RedisModule } from './redis/redis.module';
-import { ItemCacheService } from './item-cache/item-cache.service';
-import { CategoryCacheService } from './category-cache/category-cache.service';
+import { ProductCacheService } from './product/product-cache.service';
 import { PostModule } from './post/post.module';
 import Keyv from 'keyv';
 import KeyvRedis from '@keyv/redis';
 import { ScheduleModule } from '@nestjs/schedule';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
     AuthModule,
     UserModule,
-    ItemModule,
+    ProductModule,
     OrderModule,
     CategoryModule,
     FavouriteModule,
@@ -39,11 +36,10 @@ import { ScheduleModule } from '@nestjs/schedule';
         ),
       ],
     }),
-    BucketModule,
-    RedisModule,
     PostModule,
+    CommentsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, RedisService, ItemCacheService, CategoryCacheService],
+  providers: [AppService, ProductCacheService],
 })
 export class AppModule {}

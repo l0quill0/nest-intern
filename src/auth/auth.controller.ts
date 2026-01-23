@@ -14,10 +14,10 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() { email, password }: AuthDto) {
+  async login(@Body() body: AuthDto) {
     return (
-      (await this.authService.validateUser({ email, password })) &&
-      (await this.authService.login(email))
+      (await this.authService.validateUser(body)) &&
+      (await this.authService.login(body.email))
     );
   }
 

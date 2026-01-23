@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { IOfficesPaginatedApi } from './types/offices.paginated.api.type';
+import { IOfficesPaginatedApi } from './types/post.office.api.type';
 
 export const fetchPage = async (page: number, jwtToken: string) => {
   const response = await axios.get<IOfficesPaginatedApi>(

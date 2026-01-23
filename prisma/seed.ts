@@ -3,7 +3,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from '../generated/prisma';
 import axios from 'axios';
 import { fetchPage } from '../src/post/fetchPage';
-import { AuthMethod } from '../src/auth/authMethod.enum';
+import { AuthFlow } from '../src/auth/authFlow.enum';
 
 const prisma = new PrismaClient();
 
@@ -20,18 +20,18 @@ async function main() {
   });
 
   await prisma.authFlow.upsert({
-    where: { name: AuthMethod.BASIC },
+    where: { name: AuthFlow.BASIC },
     update: {},
     create: {
-      name: AuthMethod.BASIC,
+      name: AuthFlow.BASIC,
     },
   });
 
   await prisma.authFlow.upsert({
-    where: { name: AuthMethod.GOOGLE },
+    where: { name: AuthFlow.GOOGLE },
     update: {},
     create: {
-      name: AuthMethod.GOOGLE,
+      name: AuthFlow.GOOGLE,
     },
   });
 
@@ -47,7 +47,7 @@ async function main() {
       name: 'Alexander',
       role: 'ADMIN',
       favourites: { create: {} },
-      authMethod: { connect: { name: AuthMethod.BASIC } },
+      authFlow: { connect: { name: AuthFlow.BASIC } },
     },
   });
 

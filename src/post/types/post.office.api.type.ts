@@ -15,3 +15,11 @@ export interface IPostOfficeApi {
     };
   };
 }
+
+export interface IOfficesPaginatedApi {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+  items: IPostOfficeApi[];
+}

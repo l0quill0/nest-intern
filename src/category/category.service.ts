@@ -1,190 +1,77 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
-import {
-  CATEGORY_ALREADY_EXISTS,
-  CATEGORY_NOT_FOUND,
-} from './category.constants';
-import { BucketService } from 'src/bucket/bucket.service';
-import unidecode from 'unidecode';
 import { CategoryPaginationOptionsDto } from './dto/category.pagination.options.dto';
-import { CategoryCacheService } from 'src/category-cache/category-cache.service';
-import { ItemCacheService } from 'src/item-cache/item-cache.service';
-import { UpdateCategoryDto } from './dto/update.category.dto';
+import CategoryRepository from './category.repository';
+import { CategoryImageStorage } from './category.image.storage';
+import { CategoryFactory } from './category.record';
+
+export const CATEGORY_NOT_FOUND = 'CATEGORY_NOT_FOUND';
+export const CATEGORY_ALREADY_EXISTS = 'CATEGORY_ALREADY_EXISTS';
 
 @Injectable()
 export class CategoryService {
-  constructor(
-    private readonly prismaService: PrismaService,
-    private readonly bucketService: BucketService,
-    private readonly categoryCacheService: CategoryCacheService,
-    private readonly itemCacheService: ItemCacheService,
-  ) {}
+  constructor(private readonly categoryFileStorage: CategoryImageStorage) {}
 
-  async categoryGetAll() {
-    const categories = await this.prismaService.category.findMany();
-
-    return categories;
+  getAll() {
+    return CategoryRepository.getAll();
   }
 
-  async categoryGetPaginated(options: CategoryPaginationOptionsDto) {
-    const { page, pageSize, search } = options;
-
-    const cached =
-      Object.keys(options).filter((k) => options[k] !== undefined).length === 0;
-
-    if (cached) {
-      const cachedData = await this.categoryCacheService.getCategoryCache();
-      if (cachedData) return cachedData;
-    }
-
-    const skip = (page - 1) * pageSize;
-    const [totalCategories, categories] = await this.prismaService.$transaction(
-      async (tx) => {
-        const totalCategories = await tx.category.count({
-          where: { name: { contains: search, mode: 'insensitive' } },
-        });
-        const categories = await tx.category.findMany({
-          where: { name: { contains: search, mode: 'insensitive' } },
-          skip,
-          take: pageSize,
-          orderBy: { ['name']: 'asc' },
-        });
-        return [totalCategories, categories];
-      },
-    );
-
-    const totalPages = Math.ceil(totalCategories / pageSize);
-
-    const returnValue = {
-      data: categories,
-      meta: {
-        totalItems: totalCategories,
-        itemCount: categories.length,
-        itemsPerPage: pageSize,
-        totalPages,
-        currentPage: page,
-      },
-    };
-
-    if (cached) await this.categoryCacheService.setCategoryCache(returnValue);
-
-    return returnValue;
+  getBySlug(slug: string) {
+    return CategoryRepository.getBySlug(slug);
   }
 
-  async getCategoryById(id: number) {
-    const category = await this.prismaService.category.findUnique({
-      where: { id },
+  async getByQuery(query: CategoryPaginationOptionsDto) {
+    return await CategoryRepository.getByQuery(query);
+  }
+
+  async create(file: Express.Multer.File, name: string) {
+    const category = CategoryFactory.create({
+      name,
+      image: '',
     });
 
-    if (!category) {
-      throw new HttpException(CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND);
-    }
-
-    return category;
-  }
-
-  async categoryAdd(file: Express.Multer.File, name: string) {
-    const category = await this.prismaService.category.findUnique({
-      where: { name },
-    });
-
-    if (category) {
+    if (CategoryRepository.getBySlug(category.slug)) {
       throw new HttpException(CATEGORY_ALREADY_EXISTS, HttpStatus.BAD_REQUEST);
     }
 
-    const image = await this.bucketService.upload(
+    const image = await this.categoryFileStorage.upload(
       file.originalname,
       file.buffer,
       file.mimetype,
     );
+    category.image = image;
 
-    const slug = unidecode(name).toLowerCase();
-
-    await this.categoryCacheService.clearCategoryCache();
-
-    return await this.prismaService.category.create({
-      data: { name, slug, image },
-    });
+    return await CategoryRepository.add(category);
   }
 
-  async updateCategory(
-    id: number,
-    data: UpdateCategoryDto,
-    file?: Express.Multer.File,
-  ) {
-    if (!file && !data.name) return;
-
-    const category = await this.prismaService.category.findUnique({
-      where: { id },
-    });
+  async update(slug: string, file: Express.Multer.File) {
+    const category = CategoryRepository.getBySlug(slug);
 
     if (!category) {
       throw new HttpException(CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    let image: string | undefined;
+    const image = await this.categoryFileStorage.upload(
+      file.originalname,
+      file.buffer,
+      file.mimetype,
+    );
+    await this.categoryFileStorage.delete(category.image);
 
-    if (file) {
-      image = await this.bucketService.upload(
-        file.originalname,
-        file.buffer,
-        file.mimetype,
-      );
-      await this.bucketService.deleteItem(category.image);
-    }
-
-    let slug: string | undefined;
-
-    if (data.name) {
-      slug = unidecode(data.name).toLowerCase();
-    }
-
-    await this.categoryCacheService.clearCategoryCache();
-    await this.itemCacheService.clearItemCache();
-    await this.itemCacheService.clearItemCache(category.slug);
-
-    return await this.prismaService.category.update({
-      where: { id },
-      data: {
-        image,
-        name: data.name,
-        slug,
-      },
-    });
+    category.image = image;
+    await CategoryRepository.update(category);
+    return category;
   }
 
-  async categoryRemove(categoryId: number) {
-    const category = await this.prismaService.category.findUnique({
-      where: { id: categoryId },
-      include: {
-        items: true,
-      },
-    });
+  async delete(slug: string) {
+    const category = CategoryRepository.getBySlug(slug);
 
-    if (!category || category.immutable) {
+    if (!category) {
       throw new HttpException(CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    await this.categoryCacheService.clearCategoryCache();
-    await this.itemCacheService.clearItemCache();
-    await this.itemCacheService.clearItemCache(category.slug);
+    await this.categoryFileStorage.delete(category.image);
+    await CategoryRepository.delete(category);
 
-    await this.prismaService.$transaction(async (tx) => {
-      await tx.item.updateMany({
-        where: { categoryId: category.id },
-        data: { categoryId: 1 },
-      });
-      await tx.category.delete({ where: { id: categoryId } });
-    });
-
-    await this.bucketService.deleteItem(category.image);
-  }
-
-  async validateCategories(categories: string[]) {
-    const categoriesDb = await this.prismaService.category.findMany({
-      where: { slug: { in: categories } },
-    });
-
-    return categories.length === categoriesDb.length;
+    return category;
   }
 }

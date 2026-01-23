@@ -7,7 +7,6 @@ import {
   MaxFileSizeValidator,
   Param,
   ParseFilePipe,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -24,36 +23,39 @@ import { CategoryCreateDto } from './dto/category.create.dto';
 import 'multer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CategoryPaginationOptionsDto } from './dto/category.pagination.options.dto';
-import { UpdateCategoryDto } from './dto/update.category.dto';
+import { ProductCacheService } from 'src/product/product-cache.service';
 
 const maxImageSize = 5 * 1024 * 1024;
 
 @Controller('category')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(
+    private readonly categoryService: CategoryService,
+    private readonly productCacheService: ProductCacheService,
+  ) {}
 
   @Get('')
-  async getPaginatedCategories(@Query() dto: CategoryPaginationOptionsDto) {
-    return await this.categoryService.categoryGetPaginated(dto);
+  async getByQuery(@Query() query: CategoryPaginationOptionsDto) {
+    return await this.categoryService.getByQuery(query);
   }
 
   @Get('all')
-  async getAllCategories() {
-    return await this.categoryService.categoryGetAll();
+  getAll() {
+    return this.categoryService.getAll();
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
-  @Get(':id')
-  async getCategoryById(@Param('id') id: number) {
-    return await this.categoryService.getCategoryById(id);
+  @Get(':slug')
+  getBySlug(@Param('slug') slug: string) {
+    return this.categoryService.getBySlug(slug);
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
   @Post('')
   @UseInterceptors(FileInterceptor('file'))
-  async addCategory(
+  async create(
     @UploadedFile(
       new ParseFilePipe({
         validators: [
@@ -65,17 +67,16 @@ export class CategoryController {
     file: Express.Multer.File,
     @Body() data: CategoryCreateDto,
   ) {
-    return await this.categoryService.categoryAdd(file, data.name);
+    return await this.categoryService.create(file, data.name);
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
-  @Patch(':id')
+  @Patch(':slug')
   @UseInterceptors(FileInterceptor('file'))
-  async updateCategory(
+  async update(
     @UploadedFile(
       new ParseFilePipe({
-        fileIsRequired: false,
         validators: [
           new MaxFileSizeValidator({ maxSize: maxImageSize }),
           new FileTypeValidator({ fileType: 'image/jpeg' }),
@@ -83,16 +84,18 @@ export class CategoryController {
       }),
     )
     file: Express.Multer.File,
-    @Param('id') id: number,
-    @Body() data: UpdateCategoryDto,
+    @Param('slug') slug: string,
   ) {
-    return await this.categoryService.updateCategory(id, data, file);
+    return await this.categoryService.update(slug, file);
   }
 
   @Roles([Role.ADMIN])
   @UseGuards(JwtGuard, RolesGuard)
-  @Delete(':id')
-  async removeCategory(@Param('id', ParseIntPipe) id: number) {
-    return await this.categoryService.categoryRemove(id);
+  @Delete(':slug')
+  async delete(@Param('slug') slug: string) {
+    await this.productCacheService.deleteShowcase(slug);
+    await this.productCacheService.deleteShowcase();
+
+    return await this.categoryService.delete(slug);
   }
 }
