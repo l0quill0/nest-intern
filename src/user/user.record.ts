@@ -114,8 +114,8 @@ export class User {
       where: { name: { in: data.authFlow } },
     });
 
-    const nonExistantFlows = flows.filter((f) =>
-      data.authFlow.includes(f.name),
+    const nonExistantFlows = flows.filter(
+      (f) => !data.authFlow.includes(f.name),
     );
 
     if (nonExistantFlows.length) {
