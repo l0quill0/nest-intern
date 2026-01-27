@@ -22,7 +22,7 @@ export class OrderProduct {
   }
 }
 
-class OrderProducts extends Array<OrderProduct> {
+export class OrderProducts extends Array<OrderProduct> {
   constructor(items: OrderProduct[] | number) {
     if (typeof items === 'number') {
       super(items);
@@ -152,6 +152,9 @@ export class Order {
       where: { AND: [{ userId: user.id }, { status: OrderStatus.INCOMPLETE }] },
       include: {
         items: {
+          orderBy: {
+            ['id']: 'asc',
+          },
           include: {
             item: {
               include: {
@@ -263,6 +266,9 @@ export class Order {
           },
         },
         items: {
+          orderBy: {
+            ['id']: 'asc',
+          },
           include: {
             item: {
               include: {

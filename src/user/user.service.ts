@@ -6,8 +6,9 @@ import { AuthFlow } from 'src/auth/authFlow.enum';
 
 export const USER_NOT_FOUND = 'USER_NOT_FOUND';
 export const PASSWORDS_DONT_MATCH = 'PASSWORDS_DONT_MATCH';
-export const FLOW_COMPLETED = 'FLOW_ALREADY_COMPLETED';
-export const BASIC_FLOW_INCOMPLETE = 'BASIC_FLOW_NOT_COMPLETED';
+export const FLOW_COMPLETED = 'FLOW_COMPLETED';
+export const BASIC_FLOW_INCOMPLETE = 'BASIC_FLOW_INCOMPLETE';
+export const ERROR_CREATING_USER = 'ERROR_CREATING_USER';
 
 const updateUserKeys = ['name', 'email', 'authFlow'];
 

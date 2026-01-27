@@ -2,11 +2,13 @@ import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { OrderStatus } from './order.enum';
 import { OrderUpdateDto } from './dto/order.update.dto';
 import { User } from 'src/user/user.record';
-import { USER_NOT_FOUND } from 'src/user/user.service';
+import { ERROR_CREATING_USER, USER_NOT_FOUND } from 'src/user/user.service';
 import { Order } from './order.record';
 import { Post } from 'src/post/post.record';
 import { OrderQueryDto } from './dto/order.query.dto';
 import { POST_OFFICT_NOT_FOUND } from 'src/post/post.service';
+import { OrderUnauthDto } from './dto/order.unauth.dto';
+import { AuthFlow } from 'src/auth/authFlow.enum';
 
 export const ORDER_NOT_FOUND = 'ORDER_NOT_FOUND';
 export const ORDER_EMPTY = 'ORDER_EMPTY';
@@ -48,6 +50,30 @@ export class OrderService {
     if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
     return await Order.create(user);
+  }
+
+  async createWithoutAuth(data: OrderUnauthDto) {
+    const user =
+      (await User.getByEmail(data.email)) ||
+      (await User.create({ email: data.email, authFlow: AuthFlow.AUTO }));
+
+    if (!user)
+      throw new HttpException(
+        ERROR_CREATING_USER,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+
+    const postOffice = await Post.getById(data.postId);
+    if (!postOffice)
+      throw new HttpException(POST_OFFICT_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+    const order = await Order.create(user);
+
+    order.postOffice = postOffice;
+    order.status = OrderStatus.PENDING;
+    await order.items.setFromIds(data.items);
+
+    return await order.update();
   }
 
   async update(userId: number, orderId: number, data: OrderUpdateDto) {

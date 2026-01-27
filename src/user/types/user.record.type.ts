@@ -12,8 +12,9 @@ export type TUserParams = {
 
 export type TCreateUser = Omit<
   TUserParams,
-  'id' | 'role' | 'createdAt' | 'password' | 'authFlow'
+  'id' | 'role' | 'createdAt' | 'password' | 'authFlow' | 'name'
 > & {
+  name?: string;
   password?: Password;
   authFlow: string;
 };

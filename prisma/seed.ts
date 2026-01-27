@@ -35,6 +35,14 @@ async function main() {
     },
   });
 
+  await prisma.authFlow.upsert({
+    where: { name: AuthFlow.AUTO },
+    update: {},
+    create: {
+      name: AuthFlow.AUTO,
+    },
+  });
+
   const salt = await bcrypt.genSalt();
   const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASS!, salt);
 
