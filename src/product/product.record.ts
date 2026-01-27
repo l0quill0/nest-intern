@@ -178,7 +178,7 @@ export class Product {
         score: true,
       },
     });
-    return { count: score._count._all, avg: score._avg.score };
+    return { count: score._count._all, avg: Number(score._avg.score) };
   }
 
   async isInFavourites(userId: number) {
