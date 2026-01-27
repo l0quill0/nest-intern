@@ -16,7 +16,7 @@ export class OrderQueryDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['id', 'price', 'createdAt'])
+  @IsIn(['id', 'price', 'createdAt', 'total', 'status'])
   readonly sortBy: string = 'id';
 
   @IsOptional()
