@@ -11,6 +11,9 @@ export class UserResponseDto {
   email: string;
 
   @Expose()
+  phone: string;
+
+  @Expose()
   authFlow: string[];
 
   @Exclude()

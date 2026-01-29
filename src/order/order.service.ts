@@ -54,8 +54,11 @@ export class OrderService {
 
   async createWithoutAuth(data: OrderUnauthDto) {
     const user =
-      (await User.getByEmail(data.email)) ||
-      (await User.create({ email: data.email, authFlow: AuthFlow.AUTO }));
+      (await User.getByPhone(data.phone)) ||
+      (await User.create({
+        phone: data.phone.replaceAll('+', ''),
+        authFlow: AuthFlow.AUTO,
+      }));
 
     if (!user)
       throw new HttpException(

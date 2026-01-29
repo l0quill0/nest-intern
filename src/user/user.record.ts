@@ -34,7 +34,8 @@ export class User {
   public readonly id: number;
   public name: string;
   public readonly role: string;
-  public email: string;
+  public email: string | null;
+  public phone: string | null;
   public password: Password | null;
   public readonly createdAt: Date;
   public authFlow: string[];
@@ -44,6 +45,7 @@ export class User {
     this.name = params.name;
     this.role = params.role;
     this.email = params.email;
+    this.phone = params.phone;
     this.password = params.password;
     this.createdAt = params.createdAt;
     this.authFlow = params.authFlow;
@@ -54,6 +56,21 @@ export class User {
       ...user,
       authFlow: user.authFlow.map((method) => method.name),
       password: user.password ? new Password(user.password) : null,
+    });
+  }
+
+  static async getByPhone(phone: string) {
+    const res = await prisma.user.findUnique({
+      where: { phone },
+      include: { authFlow: true },
+    });
+
+    if (!res) return undefined;
+
+    return new User({
+      ...res,
+      authFlow: res.authFlow.map((m) => m.name),
+      password: res.password ? new Password(res.password) : null,
     });
   }
 
@@ -88,6 +105,10 @@ export class User {
   }
 
   static async create(data: TCreateUser) {
+    if (!data.email && !data.phone) {
+      throw new Error('Error creating user email or phone number expected');
+    }
+
     const res = await prisma.user.create({
       data: {
         ...data,
@@ -227,6 +248,7 @@ export class User {
       id: this.id,
       name: this.name,
       role: this.role,
+      phone: this.phone,
       email: this.email,
       password: this.password,
       authFlow: this.authFlow,

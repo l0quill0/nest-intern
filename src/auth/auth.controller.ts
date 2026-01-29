@@ -17,7 +17,7 @@ export class AuthController {
   async login(@Body() body: AuthDto) {
     return (
       (await this.authService.validateUser(body)) &&
-      (await this.authService.login(body.email))
+      (await this.authService.login(body.identifier))
     );
   }
 

@@ -10,7 +10,7 @@ export const FLOW_COMPLETED = 'FLOW_COMPLETED';
 export const BASIC_FLOW_INCOMPLETE = 'BASIC_FLOW_INCOMPLETE';
 export const ERROR_CREATING_USER = 'ERROR_CREATING_USER';
 
-const updateUserKeys = ['name', 'email', 'authFlow'];
+const updateUserKeys = ['name', 'email', 'authFlow', 'phone'];
 
 @Injectable()
 export class UserService {
@@ -30,6 +30,10 @@ export class UserService {
     if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
     for (const key of updateUserKeys) {
+      if (key === 'phone' && data[key] !== undefined) {
+        user[key] = data[key].replaceAll('+', '');
+        continue;
+      }
       if (data[key] !== undefined && key in user) {
         user[key] = data[key] as User[keyof User];
       }

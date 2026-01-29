@@ -1,9 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsEmail, IsNumber, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsString,
+  IsNumber,
+  ValidateNested,
+  IsPhoneNumber,
+} from 'class-validator';
 
 export class OrderUnauthDto {
-  @IsEmail()
-  email: string;
+  @IsString()
+  @IsPhoneNumber()
+  phone: string;
 
   @IsNumber()
   postId: number;

@@ -9,19 +9,27 @@ import { Password, User } from 'src/user/user.record';
 
 export const INVALID_PASSWORD = 'INVALID_PASSWORD';
 export const USER_ALREADY_EXISTS = 'USER_ALREADY_EXISTS';
+export const INVALID_LOGIN_DATA = 'INVALID_LOGIN_DATA';
+export const EMAIL_TAKEN = 'EMAIL_TAKEN';
+export const PHONE_TAKEN = 'PHONE_TAKEN';
 
 @Injectable()
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
 
   async register(data: CreateUserDto) {
-    const user = await User.getByEmail(data.email);
+    const user =
+      (await User.getByEmail(data.email)) ||
+      (await User.getByPhone(data.phone));
 
     if (
       user &&
       !user.authFlow.every((flow) => flow === (AuthFlow.AUTO as string))
     ) {
-      throw new HttpException(USER_ALREADY_EXISTS, HttpStatus.BAD_REQUEST);
+      if (user.email === data.email)
+        throw new HttpException(EMAIL_TAKEN, HttpStatus.BAD_REQUEST);
+
+      throw new HttpException(PHONE_TAKEN, HttpStatus.BAD_REQUEST);
     }
 
     const password = await Password.hashed(data.password);
@@ -30,18 +38,23 @@ export class AuthService {
       return await User.create({
         ...data,
         authFlow: AuthFlow.BASIC,
+        phone: data.phone.replaceAll('+', ''),
         password,
       });
     } else {
       user.name = data.name;
+      user.phone = data.phone.replaceAll('+', '');
       user.password = password;
       user.authFlow.push(AuthFlow.BASIC);
       return await user.update();
     }
   }
 
-  async validateUser({ email, password }: AuthDto) {
-    const user = await User.getByEmail(email);
+  async validateUser({ identifier, password }: AuthDto) {
+    const user =
+      (await User.getByEmail(identifier)) ||
+      (await User.getByPhone(identifier));
+
     if (!user) {
       throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
@@ -56,8 +69,10 @@ export class AuthService {
     return true;
   }
 
-  async login(email: string) {
-    const user = await User.getByEmail(email);
+  async login(identifier: string) {
+    const user =
+      (await User.getByEmail(identifier)) ||
+      (await User.getByPhone(identifier));
     if (!user) throw new HttpException(USER_NOT_FOUND, HttpStatus.NOT_FOUND);
 
     return {
@@ -66,6 +81,7 @@ export class AuthService {
         sub: user.id,
         name: user.name,
         role: user.role,
+        phone: user.phone,
       }),
     };
   }
@@ -79,7 +95,7 @@ export class AuthService {
         await user.update();
       }
 
-      return await this.login(user.email);
+      return await this.login(user.email!);
     }
 
     await User.create({ ...data, authFlow: AuthFlow.GOOGLE });
